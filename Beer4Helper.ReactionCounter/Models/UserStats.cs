@@ -5,7 +5,7 @@ namespace Beer4Helper.ReactionCounter.Models
     public class UserStats
     {
         [Key]
-        public long UserId { get; set; }
+        public long Id { get; set; }
         public string? Username { get; set; }
         public int TotalReactions { get; set; }
         public int TotalReactionsOnOwnMessages { get; set; } 

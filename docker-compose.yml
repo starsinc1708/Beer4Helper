@@ -1,0 +1,57 @@
+﻿version: '3.8'
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Beer4Helper.ReactionCounter/Dockerfile
+    container_name: telegram_reaction_bot
+    ports:
+      - "5001:8080"
+    depends_on:
+      - reactiondb
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__PostgreSQL=Host=reactiondb;Port=5432;Database=reaction_bot;Username=postgres;Password=postgres
+    restart: always
+    networks:
+      - postgres_network
+
+  reactiondb:
+    image: postgres:latest
+    container_name: postgres
+    environment:
+      POSTGRES_DB: reaction_bot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - C:/docker/volumes/postgres_data:/var/lib/postgresql/data
+    networks:
+      - postgres_network
+    ports:
+      - "5432:5432"
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: postgres@postgres.com
+      PGADMIN_DEFAULT_PASSWORD: postgres
+    depends_on:
+      - reactiondb
+    networks:
+      - postgres_network
+    ports:
+      - "8091:80"
+    volumes:
+      - C:/docker/volumes/pgadmin_data:/var/lib/pgadmin
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  redis_network:
+    driver: bridge
+  postgres_network:
+    driver: bridge

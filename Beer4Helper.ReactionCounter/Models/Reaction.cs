@@ -13,7 +13,5 @@ namespace Beer4Helper.ReactionCounter.Models
         public long MessageId { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
-        
-        public virtual UserStats? UserStats { get; set; }
     }
 }
