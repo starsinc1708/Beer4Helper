@@ -2,6 +2,6 @@
 
 public class TelegramBotSettings
 {
-    public long[] AllowedChatIds { get; set; } = [];
-    public long[] CommandChatIds { get; set; } = [];
+    public long[] AllowedChatIds { get; init; } = [];
+    public long[] CommandChatIds { get; init; } = [];
 }

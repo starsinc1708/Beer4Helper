@@ -8,13 +8,8 @@ var builder = WebApplication.CreateBuilder(args);
 var settings = builder.Configuration.GetSection("TelegramBotSettings");
 builder.Services.Configure<TelegramBotSettings>(settings);
 
-// Log Telegram settings specifically
 var telegramSettings = new TelegramBotSettings();
 settings.Bind(telegramSettings);
-Console.WriteLine($"Telegram Bot Settings:");
-Console.WriteLine($"- Token: {builder.Configuration["TelegramBotToken"]}");
-Console.WriteLine($"- AllowedChatIds: {string.Join(", ", telegramSettings.AllowedChatIds)}");
-Console.WriteLine($"- ChatForCommandsId: {string.Join(", ", telegramSettings.CommandChatIds)}");
 
 builder.Services.AddDbContext<ReactionDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("PostgreSQL")));

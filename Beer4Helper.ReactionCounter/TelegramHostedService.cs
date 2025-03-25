@@ -7,12 +7,11 @@ public class TelegramHostedService(
 {
     private readonly CancellationTokenSource _cancellationTokenSource = new();
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public Task StartAsync(CancellationToken cancellationToken)
     {
         logger.LogInformation("Telegram Bot service is starting...");
-
-        // Start the polling task in the background
-        _ = Task.Run(() => StartPollingUpdatesAsync(_cancellationTokenSource.Token), cancellationToken);
+        Task.Run(() => StartPollingUpdatesAsync(_cancellationTokenSource.Token), cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
@@ -24,12 +23,9 @@ public class TelegramHostedService(
 
     private async Task StartPollingUpdatesAsync(CancellationToken cancellationToken)
     {
-        // Create a scope to resolve scoped services inside the background task
-        using (var scope = serviceScopeFactory.CreateScope())
-        {
-            var botService = scope.ServiceProvider.GetRequiredService<TelegramBotService>();
-            await PollUpdatesAsync(botService, cancellationToken);
-        }
+        using var scope = serviceScopeFactory.CreateScope();
+        var botService = scope.ServiceProvider.GetRequiredService<TelegramBotService>();
+        await PollUpdatesAsync(botService, cancellationToken);
     }
 
     private async Task PollUpdatesAsync(TelegramBotService botService, CancellationToken cancellationToken)
@@ -39,25 +35,19 @@ public class TelegramHostedService(
         {
             try
             {
-                
-                
-                // Call the GetUpdatesAsync method to fetch new updates
                 var updates = await botService.GetUpdatesAsync(offset, cancellationToken);
 
                 foreach (var update in updates)
                 {
-                    // Handle each update
                     await botService.HandleUpdateAsync(update, cancellationToken);
-                    offset = update.Id + 1; // Update the offset
+                    offset = update.Id + 1;
                 }
-
-                // Delay between polls
-                await Task.Delay(1000, cancellationToken);
+                await Task.Delay(500, cancellationToken);
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error occurred while polling Telegram updates.");
-                await Task.Delay(1000, cancellationToken); // Retry after a delay
+                await Task.Delay(500, cancellationToken);
             }
         }
     }

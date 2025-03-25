@@ -74,9 +74,8 @@ public class TelegramBotService(
             }
         }
     }
-
-
-    private string ExtractReactionValue(ReactionType reaction)
+    
+    private static string ExtractReactionValue(ReactionType reaction)
     {
         return reaction switch
         {
@@ -329,8 +328,8 @@ public class TelegramBotService(
         foreach (var user in userStats)
         {
             resultMsg.AppendLine(
-                $"<b>{index++}] @{user.Username}</b> - " +
-                $"<b>{user.TotalReactions} шт. / {user.AverageReactions} сред.кол-во</b> ({user.PhotosCount} фото)\n");
+                $"<b>{index++}. @{user.Username}</b> - " +
+                $"<b>{user.TotalReactions} шт. / {user.AverageReactions} сред.кол-во</b> ({user.PhotosCount} фото)");
         }
 
         return resultMsg.ToString();
@@ -348,7 +347,7 @@ public class TelegramBotService(
         var index = 1;
         foreach (var u in topUsers)
         {
-            resultMsg.Append($"<b>{index++}] @{u.Username}</b> - {u.TotalReactions} реакций ({u.TotalReactionsOnOwnMessages} + {u.TotalReactionsOnOthersMessages})");
+            resultMsg.Append($"<b>{index++}. @{u.Username}</b> - {u.TotalReactions} реакций ({u.TotalReactionsOnOwnMessages} + {u.TotalReactionsOnOthersMessages})");
             resultMsg.Append('\n');
         }
         return topUsers.Count != 0
@@ -414,7 +413,7 @@ public class TelegramBotService(
         
         foreach (var r in topReactions.Where(r => r.Emoji!.Length <= 4))
         {
-            resultMsg.Append( $"{index++}] {r.Emoji} - {r.Count} шт.");
+            resultMsg.Append( $"{index++}. {r.Emoji} - {r.Count} шт.");
             resultMsg.Append('\n');
         }
         
