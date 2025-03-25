@@ -343,7 +343,7 @@ public class TelegramBotService(
             .Take(10)
             .ToListAsync(cancellationToken: cancellationToken);
 
-        var resultMsg = new StringBuilder("<b>Кто же у нас поставил больше всего реакций???</b>\n(на свои фото + на чужие)");
+        var resultMsg = new StringBuilder("<b>Кто же у нас поставил больше всего реакций???</b>\n(на свои фото + на чужие)\n");
         var index = 1;
         foreach (var u in topUsers)
         {
