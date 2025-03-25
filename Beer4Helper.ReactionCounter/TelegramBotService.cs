@@ -245,50 +245,101 @@ public class TelegramBotService(
     }
     
     private async Task HandleCommand(Message message, CancellationToken cancellationToken)
+{
+    var chatId = message.Chat.Id;
+    var textParts = message.Text?.Trim().Split("@")!;
+    if (textParts.Length <= 1) return;
+    
+    var command = textParts[0];
+    var commandUsername = textParts[1].Split(' ')[0];
+    
+    var botUsername = (await botClient.GetMe(cancellationToken: cancellationToken)).Username;
+
+    if (commandUsername != botUsername) return;
+    
+    var commandParts = textParts[1].Split(' ');
+    var args = commandParts.Skip(1).ToArray();
+    
+    var period = DateTime.UtcNow.AddMonths(-1);
+    var topCount = 10;
+    var periodPrefix = 1;
+    var periodPostfix = "m";
+    
+    foreach (var arg in args)
     {
-        var chatId = message.Chat.Id;
-        var textParts = message.Text?.Trim().ToLower().Split("@")!;
-        var botUsername = (await botClient.GetMe(cancellationToken: cancellationToken)).Username;
-        if (textParts.Length <= 1 || textParts[1] != botUsername) return;
-
-        var command = textParts[0];
-
-        switch (command)
+        if (arg.StartsWith("top") && int.TryParse(arg[3..], out var count))
         {
-            case "/help":
-                await botClient.SendMessage(chatId, 
-                    "Команды:\n" +
-                    "/topusers - топ пользователей.\n" +
-                    "/topinteractions - кто сколько реагировал.\n" +
-                    "/topphotos - топ фото.\n" +
-                    "/topreactions - топ реакций.",
-                    parseMode: ParseMode.Html, cancellationToken: cancellationToken);
-                break;
-            case "/topusers":
-                var topUsers = await GetTopUsersAsync(cancellationToken);
-                await botClient.SendMessage(chatId, topUsers, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
-                break;
-            case "/topinteractions":
-                var topInteractions = await GetTopInteractionsAsync(cancellationToken);
-                await botClient.SendMessage(chatId, topInteractions, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
-                break;
-            case "/topphotos":
-                var topPhotos = await GetTopPhotosAsync(cancellationToken);
-                await botClient.SendMessage(chatId, topPhotos, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
-                break;
-            case "/topreactions":
-                var topReactions = await GetTopReactionsAsync(cancellationToken);
-                await botClient.SendMessage(chatId, topReactions, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
-                break;
+            topCount = Math.Clamp(count, 1, 25);
+        }
+        else if (arg.EndsWith('d') && int.TryParse(arg[..^1], out var days))
+        {
+            period = DateTime.UtcNow.AddDays(-days);
+            periodPrefix = days;
+            periodPostfix = "d";
+        }
+        else if (arg.EndsWith('w') && int.TryParse(arg[..^1], out var weeks))
+        {
+            period = DateTime.UtcNow.AddDays(-weeks * 7);
+            periodPrefix = weeks;
+            periodPostfix = "w";
+        }
+        else if (arg.EndsWith('m') && int.TryParse(arg[..^1], out var months))
+        {
+            period = DateTime.UtcNow.AddMonths(-months);
+            periodPrefix = months;
+            periodPostfix = "m";
         }
     }
 
-    private async Task<string> GetTopUsersAsync(CancellationToken cancellationToken)
+    if (!command.StartsWith("/help"))
     {
-        var oneMonthAgo = DateTime.UtcNow.AddMonths(-1);
-        
+        logger.LogInformation($"Command '{command}' will be executed with parameters: " +
+                              $"Period = {periodPrefix}{periodPostfix}, " +
+                              $"TopCount = {topCount}");
+    }
+    
+    switch (command)
+    {
+        case "/help":
+            logger.LogInformation("Executing /help command");
+            await botClient.SendMessage(chatId, 
+                "Команды:\n" +
+                $"/topusers@{botUsername} [period] [topX] - топ пользователей.\n" +
+                $"/topphotos@{botUsername} [period] [topX] - топ фото.\n" +
+                $"/topreactions@{botUsername} [period] [topX] - топ реакций.\n" +
+                $"/topinteractions@{botUsername} [period] [topX] - кто сколько реагировал.\n\n" +
+                "Параметры:\n" +
+                "period - период (1d, 2w, 3m)\n" +
+                "topX - количество элементов (top5, top10)",
+                parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+            break;
+        case "/topusers":
+            var topUsers = await GetTopUsersAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
+            await botClient.SendMessage(chatId, topUsers, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+            break;
+        case "/topinteractions":
+            var topInteractions = await GetTopInteractionsAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
+            await botClient.SendMessage(chatId, topInteractions, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+            break;
+        case "/topphotos":
+            var topPhotos = await GetTopPhotosAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
+            await botClient.SendMessage(chatId, topPhotos, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+            break;
+        case "/topreactions":
+            var topReactions = await GetTopReactionsAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
+            await botClient.SendMessage(chatId, topReactions, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+            break;
+        default:
+            logger.LogWarning($"Unknown command received: {command}");
+            break;
+    }
+}
+
+    private async Task<string> GetTopUsersAsync(DateTime period, int periodPrefix, string periodPostfix, int topCount,
+        CancellationToken cancellationToken)
+    {
         var userStats = await dbContext.PhotoMessages
-            .Where(p => p.CreatedAt >= oneMonthAgo)
+            .Where(p => p.CreatedAt >= period)
             .Join(
                 dbContext.UserStats,
                 photo => photo.UserId,
@@ -313,15 +364,14 @@ public class TelegramBotService(
                 AverageReactions = (double)g.Sum(x => x.ReactionsCount) / g.Count()
             })
             .OrderByDescending(x => x.TotalReactions)
-            .Take(10)
+            .Take(topCount)
             .ToListAsync(cancellationToken);
-        
-        
-        var resultMsg = new StringBuilder("<b>Топ пользователей по реакциям на фото (за последний месяц)</b>\n\n"); 
-        
+    
+        var resultMsg = new StringBuilder($"<b>Топ пользователей по реакциям на фото (за {periodPrefix}{periodPostfix})</b>\n\n"); 
+    
         if (userStats.Count == 0)
         {
-            return "Пока нет данных о реакциях на фото пользователей за последний месяц.";
+            return $"Нет данных о реакциях на фото пользователей за {periodPrefix}{periodPostfix}.";
         }
 
         var index = 1;
@@ -329,21 +379,23 @@ public class TelegramBotService(
         {
             resultMsg.AppendLine(
                 $"<b>{index++}. @{user.Username}</b> - " +
-                $"<b>{user.TotalReactions} шт. / {user.AverageReactions} сред.кол-во</b> ({user.PhotosCount} фото)");
+                $"<b>{user.TotalReactions} шт. / {user.AverageReactions:F1} сред.кол-во</b> ({user.PhotosCount} фото)");
         }
 
         return resultMsg.ToString();
     }
 
-    private async Task<string> GetTopInteractionsAsync(CancellationToken cancellationToken)
+    private async Task<string> GetTopInteractionsAsync(DateTime period, int periodPrefix, string periodPostfix,
+        int topCount,
+        CancellationToken cancellationToken)
     {
         var topUsers = await dbContext.UserStats
             .Where(u => u.Id != 0)
             .OrderByDescending(u => u.TotalReactions)
-            .Take(10)
+            .Take(topCount)
             .ToListAsync(cancellationToken: cancellationToken);
 
-        var resultMsg = new StringBuilder("<b>Кто же у нас поставил больше всего реакций???</b>\n(на свои фото + на чужие)\n");
+        var resultMsg = new StringBuilder($"<b>Кто же у нас поставил больше всего реакций???</b>\n(за {periodPrefix}{periodPostfix})\n");
         var index = 1;
         foreach (var u in topUsers)
         {
@@ -352,13 +404,13 @@ public class TelegramBotService(
         }
         return topUsers.Count != 0
             ? resultMsg.ToString()
-            : "Пока нет данных о реакциях.";
+            : $"Пока нет данных о реакциях за {periodPrefix}{periodPostfix}.";
     }
 
-    private async Task<string> GetTopPhotosAsync(CancellationToken cancellationToken)
+
+    private async Task<string> GetTopPhotosAsync(DateTime period, int periodPrefix, string periodPostfix, int topCount,
+        CancellationToken cancellationToken)
     {
-        var period = DateTime.UtcNow.AddMonths(-1);
-    
         var topPhotos = await dbContext.PhotoMessages
             .Where(p => p.CreatedAt > period)
             .Join(dbContext.Reactions, 
@@ -373,10 +425,10 @@ public class TelegramBotService(
                 ChatId = group.First().photo.ChatId
             })
             .OrderByDescending(p => p.TotalReactions)
-            .Take(10)
+            .Take(topCount)
             .ToListAsync(cancellationToken: cancellationToken);
 
-        var resultMsg = new StringBuilder("<b>Топ фотографий по количеству реакций</b>\n");
+        var resultMsg = new StringBuilder($"<b>Топ фотографий по количеству реакций (за {periodPrefix}{periodPostfix})</b>\n");
         var index = 1;
 
         foreach (var p in topPhotos)
@@ -385,17 +437,17 @@ public class TelegramBotService(
                 $"<a href=\"https://t.me/c/{p.ChatId.ToString()[4..]}/{p.MessageId}\">{index++} Место</a> - {p.TotalReactions} шт.");
             resultMsg.Append('\n');
         }
-        
+    
         return topPhotos.Count != 0
             ? resultMsg.ToString()
-            : "Пока нет данных о фотографиях.";
+            : $"Нет данных о фотографиях за {periodPrefix}{periodPostfix}.";
     }
 
 
-    private async Task<string> GetTopReactionsAsync(CancellationToken cancellationToken)
+    private async Task<string> GetTopReactionsAsync(DateTime period, int periodPrefix, string periodPostfix,
+        int topCount,
+        CancellationToken cancellationToken)
     {
-        var period = DateTime.UtcNow.AddMonths(-1);
-        
         var topReactions = await dbContext.Reactions
             .Where(r => r.CreatedAt > period)
             .GroupBy(r => r.Emoji)
@@ -405,21 +457,21 @@ public class TelegramBotService(
                 Count = group.Count()
             })
             .OrderByDescending(r => r.Count)
-            .Take(10)
+            .Take(topCount)
             .ToListAsync(cancellationToken);
 
-        var resultMsg = new StringBuilder("<b>Топ самых частых реакций</b>\n(без кастомных эмодзи)\n");
+        var resultMsg = new StringBuilder($"<b>Топ самых частых реакций</b>\n(за {periodPrefix}{periodPostfix}, без кастомных эмодзи)\n");
         var index = 1;
-        
+    
         foreach (var r in topReactions.Where(r => r.Emoji!.Length <= 4))
         {
             resultMsg.Append( $"{index++}. {r.Emoji} - {r.Count} шт.");
             resultMsg.Append('\n');
         }
-        
+    
         return topReactions.Count != 0
             ? resultMsg.ToString()
-            : "Пока нет данных о реакциях.";
+            : $"Нет данных о реакциях за {periodPrefix}{periodPostfix}.";
     }
 
     public async Task<IEnumerable<Update>> GetUpdatesAsync(int offset, CancellationToken cancellationToken)
