@@ -249,7 +249,8 @@ public class TelegramBotService(
     {
         var chatId = message.Chat.Id;
         var textParts = message.Text?.Trim().ToLower().Split("@")!;
-        if (textParts.Length <= 1 || textParts[1] != "beer4helperbot") return;
+        var botUsername = (await botClient.GetMe(cancellationToken: cancellationToken)).Username;
+        if (textParts.Length <= 1 || textParts[1] != botUsername) return;
 
         var command = textParts[0];
 

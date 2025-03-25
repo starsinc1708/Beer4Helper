@@ -1,0 +1,21 @@
+# This is a generated file. Not intended for manual editing.
+version: "3.8"
+services:
+  bot:
+    build:
+      context: "C:\\Users\\timatima\\RiderProjects\\Beer4Helper"
+      dockerfile: "Beer4Helper.ReactionCounter/Dockerfile"
+      target: "base"
+    command: []
+    entrypoint:
+    - "dotnet"
+    - "/app/bin/Debug/net9.0/Beer4Helper.ReactionCounter.dll"
+    environment:
+      DOTNET_USE_POLLING_FILE_WATCHER: "true"
+    image: "beer4helper.reactioncounter:dev"
+    ports: []
+    volumes:
+    - "C:\\Users\\timatima\\RiderProjects\\Beer4Helper\\Beer4Helper.ReactionCounter:/app:rw"
+    - "C:\\Users\\timatima\\RiderProjects\\Beer4Helper:/src:rw"
+    - "C:\\Users\\timatima\\.nuget\\packages:/home/app/.nuget/packages"
+    working_dir: "/app"
