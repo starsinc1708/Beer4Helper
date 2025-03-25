@@ -259,6 +259,7 @@ public class TelegramBotService(
                 await botClient.SendMessage(chatId, 
                     "Команды:\n" +
                     "/topusers - топ пользователей.\n" +
+                    "/topinteractions - кто сколько реагировал.\n" +
                     "/topphotos - топ фото.\n" +
                     "/topreactions - топ реакций.",
                     parseMode: ParseMode.Html, cancellationToken: cancellationToken);
