@@ -34,10 +34,7 @@ public class TelegramBotService(
                     }
                     break;
                 case { Type: UpdateType.Message, Message: not null }:
-                    if (_settings.CommandChatIds.Contains(update.Message.Chat.Id))
-                    {
-                        await HandleMessage(update.Message, cancellationToken);
-                    }
+                    await HandleMessage(update.Message, cancellationToken);
                     break;
                 default:
                     logger.LogWarning("Unknown update type received.");
@@ -93,11 +90,17 @@ public class TelegramBotService(
     {
         if (message.Photo != null)
         {
-            await SavePhotoMessage(message, cancellationToken);
+            if (_settings.AllowedChatIds.Contains(message.Chat.Id))
+            {
+                await SavePhotoMessage(message, cancellationToken);
+            }
         }
         else if (message.Text != null)
         {
-            await HandleCommand(message, cancellationToken);
+            if (_settings.CommandChatIds.Contains(message.Chat.Id))
+            {
+                await HandleCommand(message, cancellationToken);
+            }
         }
     }
 
@@ -264,6 +267,10 @@ public class TelegramBotService(
                 var topUsers = await GetTopUsersAsync(cancellationToken);
                 await botClient.SendMessage(chatId, topUsers, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                 break;
+            case "/topinteractions":
+                var topInteractions = await GetTopInteractionsAsync(cancellationToken);
+                await botClient.SendMessage(chatId, topInteractions, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                break;
             case "/topphotos":
                 var topPhotos = await GetTopPhotosAsync(cancellationToken);
                 await botClient.SendMessage(chatId, topPhotos, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
@@ -274,8 +281,60 @@ public class TelegramBotService(
                 break;
         }
     }
-    
+
     private async Task<string> GetTopUsersAsync(CancellationToken cancellationToken)
+    {
+        var oneMonthAgo = DateTime.UtcNow.AddMonths(-1);
+        
+        var userStats = await dbContext.PhotoMessages
+            .Where(p => p.CreatedAt >= oneMonthAgo)
+            .Join(
+                dbContext.UserStats,
+                photo => photo.UserId,
+                userStat => userStat.Id,
+                (photo, userStat) => new { Photo = photo, UserStat = userStat }
+            )
+            .GroupJoin(
+                dbContext.Reactions,
+                x => x.Photo.MessageId,
+                reaction => reaction.MessageId,
+                (x, reactions) => new {
+                    x.Photo.UserId,
+                    x.UserStat.Username,
+                    ReactionsCount = reactions.Count()
+                }
+            )
+            .GroupBy(x => new { x.UserId, x.Username })
+            .Select(g => new {
+                Username = g.Key.Username,
+                TotalReactions = g.Sum(x => x.ReactionsCount),
+                PhotosCount = g.Count(),
+                AverageReactions = (double)g.Sum(x => x.ReactionsCount) / g.Count()
+            })
+            .OrderByDescending(x => x.TotalReactions)
+            .Take(10)
+            .ToListAsync(cancellationToken);
+        
+        
+        var resultMsg = new StringBuilder("<b>Топ пользователей по реакциям на фото (за последний месяц)</b>\n\n"); 
+        
+        if (userStats.Count == 0)
+        {
+            return "Пока нет данных о реакциях на фото пользователей за последний месяц.";
+        }
+
+        var index = 1;
+        foreach (var user in userStats)
+        {
+            resultMsg.AppendLine(
+                $"<b>{index++}] @{user.Username}</b> - " +
+                $"<b>{user.TotalReactions} шт. / {user.AverageReactions} сред.кол-во</b> ({user.PhotosCount} фото)\n");
+        }
+
+        return resultMsg.ToString();
+    }
+
+    private async Task<string> GetTopInteractionsAsync(CancellationToken cancellationToken)
     {
         var topUsers = await dbContext.UserStats
             .Where(u => u.Id != 0)
@@ -283,7 +342,7 @@ public class TelegramBotService(
             .Take(10)
             .ToListAsync(cancellationToken: cancellationToken);
 
-        var resultMsg = new StringBuilder("<b>Топ пользователей по количеству реакций</b>\n");
+        var resultMsg = new StringBuilder("<b>Кто же у нас поставил больше всего реакций???</b>\n(на свои фото + на чужие)");
         var index = 1;
         foreach (var u in topUsers)
         {
