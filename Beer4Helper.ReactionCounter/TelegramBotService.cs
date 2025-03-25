@@ -1,6 +1,8 @@
-﻿using Beer4Helper.ReactionCounter.Data;
+﻿using System.Text;
+using Beer4Helper.ReactionCounter.Data;
 using Beer4Helper.ReactionCounter.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -9,12 +11,11 @@ namespace Beer4Helper.ReactionCounter;
 
 public class TelegramBotService(
     ITelegramBotClient botClient,
+    IOptions<TelegramBotSettings> settings,
     ILogger<TelegramBotService> logger,
     ReactionDbContext dbContext)
 {
-    public const long ALLOWED_CHAT_ID = -1002265344874;
-    public const long CHAT_FOR_COMMANDS_ID = -1002265344874;
-    
+    private readonly TelegramBotSettings _settings = settings.Value;
     public async Task HandleUpdateAsync(Update update, CancellationToken cancellationToken)
     {
         try
@@ -27,13 +28,16 @@ public class TelegramBotService(
             switch (update)
             {
                 case { Type: UpdateType.MessageReaction, MessageReaction: not null }:
-                    if (update.MessageReaction.Chat.Id == ALLOWED_CHAT_ID)
+                    if (_settings.AllowedChatIds.Contains(update.MessageReaction.Chat.Id))
+                    {
                         await HandleReactionUpdate(update.MessageReaction, cancellationToken);
+                    }
                     break;
                 case { Type: UpdateType.Message, Message: not null }:
-                    logger.LogInformation($"Update received from chat[{update.Message!.Chat.Id}]");
-                    if (update.Message.Chat.Id is (ALLOWED_CHAT_ID or CHAT_FOR_COMMANDS_ID))
+                    if (_settings.CommandChatIds.Contains(update.Message.Chat.Id))
+                    {
                         await HandleMessage(update.Message, cancellationToken);
+                    }
                     break;
                 default:
                     logger.LogWarning("Unknown update type received.");
@@ -277,11 +281,17 @@ public class TelegramBotService(
             .Where(u => u.Id != 0)
             .OrderByDescending(u => u.TotalReactions)
             .Take(10)
-            .Select(u => $"<b>@{u.Username}</b> - {u.TotalReactions} реакций")
             .ToListAsync(cancellationToken: cancellationToken);
 
+        var resultMsg = new StringBuilder("<b>Топ пользователей по количеству реакций</b>\n");
+        var index = 1;
+        foreach (var u in topUsers)
+        {
+            resultMsg.Append($"<b>{index++}] @{u.Username}</b> - {u.TotalReactions} реакций ({u.TotalReactionsOnOwnMessages} + {u.TotalReactionsOnOthersMessages})");
+            resultMsg.Append('\n');
+        }
         return topUsers.Count != 0
-            ? FormatTopList("Топ пользователей по количеству реакций\n", topUsers)
+            ? resultMsg.ToString()
             : "Пока нет данных о реакциях.";
     }
 
@@ -304,11 +314,20 @@ public class TelegramBotService(
             })
             .OrderByDescending(p => p.TotalReactions)
             .Take(10)
-            .Select(p => $"<a href=\"https://t.me/c/{p.ChatId.ToString().Substring(4)}/{p.MessageId}\">Фото</a> - {p.TotalReactions} шт.")
             .ToListAsync(cancellationToken: cancellationToken);
 
+        var resultMsg = new StringBuilder("<b>Топ фотографий по количеству реакций</b>\n");
+        var index = 1;
+
+        foreach (var p in topPhotos)
+        {
+            resultMsg.Append(
+                $"<a href=\"https://t.me/c/{p.ChatId.ToString()[4..]}/{p.MessageId}\">{index++} Место</a> - {p.TotalReactions} шт.");
+            resultMsg.Append('\n');
+        }
+        
         return topPhotos.Count != 0
-            ? FormatTopList("Топ фотографий по количеству реакций", topPhotos)
+            ? resultMsg.ToString()
             : "Пока нет данных о фотографиях.";
     }
 
@@ -327,24 +346,20 @@ public class TelegramBotService(
             })
             .OrderByDescending(r => r.Count)
             .Take(10)
-            .Select(r => $"<b>{r.Emoji}</b> - {r.Count} шт.")
             .ToListAsync(cancellationToken);
 
+        var resultMsg = new StringBuilder("<b>Топ самых частых реакций</b>\n(без кастомных эмодзи)\n");
+        var index = 1;
+        
+        foreach (var r in topReactions.Where(r => r.Emoji!.Length <= 4))
+        {
+            resultMsg.Append( $"{index++}] {r.Emoji} - {r.Count} шт.");
+            resultMsg.Append('\n');
+        }
+        
         return topReactions.Count != 0
-            ? FormatTopList("Топ самых частых реакций", topReactions)
+            ? resultMsg.ToString()
             : "Пока нет данных о реакциях.";
-    }
-
-    private string FormatTopList(string title, List<string> list)
-    {
-        var formattedList = string.Join("\n", list);
-        return $"<b>{title}</b>\n{formattedList}";
-    }
-
-    private string FormatTopList(string title, IEnumerable<object> list)
-    {
-        var formattedList = string.Join("\n", list.Select(item => item.ToString()));
-        return $"<b>{title}</b>\n{formattedList}";
     }
 
     public async Task<IEnumerable<Update>> GetUpdatesAsync(int offset, CancellationToken cancellationToken)
