@@ -367,7 +367,7 @@ public class TelegramBotService(
             .Take(topCount)
             .ToListAsync(cancellationToken);
     
-        var resultMsg = new StringBuilder($"<b>Топ пользователей по реакциям на фото (за {periodPrefix}{periodPostfix})</b>\n\n"); 
+        var resultMsg = new StringBuilder($"<b>На их фото реагировали больше всего!</b>\n<i>(за {periodPrefix}{periodPostfix})</i>\n\n"); 
     
         if (userStats.Count == 0)
         {
@@ -395,7 +395,7 @@ public class TelegramBotService(
             .Take(topCount)
             .ToListAsync(cancellationToken: cancellationToken);
 
-        var resultMsg = new StringBuilder($"<b>Кто же у нас поставил больше всего реакций???</b>\n(за {periodPrefix}{periodPostfix})\n");
+        var resultMsg = new StringBuilder($"<b>Кто же поставил больше всего реакций?</b>\n<i>(за {periodPrefix}{periodPostfix})</i>\n");
         var index = 1;
         foreach (var u in topUsers)
         {
@@ -428,7 +428,7 @@ public class TelegramBotService(
             .Take(topCount)
             .ToListAsync(cancellationToken: cancellationToken);
 
-        var resultMsg = new StringBuilder($"<b>Топ фотографий по количеству реакций (за {periodPrefix}{periodPostfix})</b>\n");
+        var resultMsg = new StringBuilder($"<b>Какие фото вызвали больше всего изумления?</b>\n<i>(за {periodPrefix}{periodPostfix})</i>\n");
         var index = 1;
 
         foreach (var p in topPhotos)
@@ -460,7 +460,7 @@ public class TelegramBotService(
             .Take(topCount)
             .ToListAsync(cancellationToken);
 
-        var resultMsg = new StringBuilder($"<b>Топ самых частых реакций</b>\n(за {periodPrefix}{periodPostfix}, без кастомных эмодзи)\n");
+        var resultMsg = new StringBuilder($"<b>Как мы реагировали чаще всего?</b>\n<i>(за {periodPrefix}{periodPostfix}, без кастомных эмодзи)</i>\n");
         var index = 1;
     
         foreach (var r in topReactions.Where(r => r.Emoji!.Length <= 4))
