@@ -87,6 +87,7 @@ public class TelegramBotService(
 
     private async Task HandleMessage(Message message, CancellationToken cancellationToken)
     {
+        if (message.Chat.Type == ChatType.Private) return;
         if (message.Photo != null)
         {
             if (_settings.AllowedChatIds.Contains(message.Chat.Id))
@@ -390,6 +391,7 @@ public class TelegramBotService(
         CancellationToken cancellationToken)
     {
         var topUsers = await dbContext.UserStats
+            .AsNoTracking()
             .Where(u => u.Id != 0)
             .OrderByDescending(u => u.TotalReactions)
             .Take(topCount)
@@ -412,6 +414,7 @@ public class TelegramBotService(
         CancellationToken cancellationToken)
     {
         var topPhotos = await dbContext.PhotoMessages
+            .AsNoTracking()
             .Where(p => p.CreatedAt > period)
             .Join(dbContext.Reactions, 
                 photo => photo.MessageId, 
@@ -448,8 +451,11 @@ public class TelegramBotService(
         int topCount,
         CancellationToken cancellationToken)
     {
+        var photoMsgIds = await dbContext.PhotoMessages.AsNoTracking().Select(pm => pm.MessageId).ToListAsync(cancellationToken: cancellationToken);
+        
         var topReactions = await dbContext.Reactions
-            .Where(r => r.CreatedAt > period)
+            .AsNoTracking()
+            .Where(r => r.CreatedAt > period && photoMsgIds.Contains((int)r.MessageId))
             .GroupBy(r => r.Emoji)
             .Select(group => new
             {
