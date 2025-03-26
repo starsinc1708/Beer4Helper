@@ -395,7 +395,7 @@ public class TelegramBotService(
             .Take(topCount)
             .ToListAsync(cancellationToken: cancellationToken);
 
-        var resultMsg = new StringBuilder($"<b>Кто же поставил больше всего реакций?</b>\n<i>(за {periodPrefix}{periodPostfix})</i>\n");
+        var resultMsg = new StringBuilder($"<b>Кто же поставил больше всего реакций?</b>\n<i>(за {periodPrefix}{periodPostfix}, (на свои + на чужие) )</i>\n");
         var index = 1;
         foreach (var u in topUsers)
         {
