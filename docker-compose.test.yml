@@ -1,61 +1,67 @@
 version: '3.8'
 
 services:
-  bot:
+  bot-test:
     build:
       context: .
       dockerfile: Beer4Helper.ReactionCounter/Dockerfile
-    container_name: telegram_reaction_bot
+    container_name: telegram_reaction_bot_test
     ports:
-      - "5001:8080"
+      - "5002:8080"
     depends_on:
-      - reactiondb
+      reactiondb-test:
+        condition: service_healthy
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__PostgreSQL=Host=reactiondb;Port=5432;Database=reaction_bot;Username=postgres;Password=postgres
+      - ConnectionStrings__PostgreSQL=Host=reactiondb-test;Port=5432;Database=reaction_bot;Username=postgres;Password=postgres
       - TelegramBotToken=7315536718:AAHUH9yNmvDhc8kgHhFTpLRmbdZRNH7wIvY
       - TelegramBotSettings__AllowedChatIds__0=-1002490626579
       - TelegramBotSettings__CommandChatIds__0=-1002257766850
       - TelegramBotSettings__CommandChatIds__1=-1002490626579
     restart: always
     networks:
-      - postgres_network
+      - postgres_network-test
 
-  reactiondb:
+  reactiondb-test:
     image: postgres:latest
-    container_name: postgres
+    container_name: postgres-test
     environment:
       POSTGRES_DB: reaction_bot
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
-      - C:/docker/volumes/postgres_data:/var/lib/postgresql/data
+      - C:/docker/volumes/postgres_data_test:/var/lib/postgresql/data
     networks:
-      - postgres_network
+      - postgres_network-test
     ports:
-      - "5432:5432"
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  pgadmin:
+  pgadmin-test:
     image: dpage/pgadmin4:latest
-    container_name: pgadmin
+    container_name: pgadmin-test
     environment:
       PGADMIN_DEFAULT_EMAIL: postgres@postgres.com
       PGADMIN_DEFAULT_PASSWORD: postgres
     depends_on:
-      - reactiondb
+      - reactiondb-test
     networks:
-      - postgres_network
+      - postgres_network-test
     ports:
-      - "8091:80"
+      - "8093:80"
     volumes:
-      - C:/docker/volumes/pgadmin_data:/var/lib/pgadmin
+      - C:/docker/volumes/pgadmin_data_test:/var/lib/pgadmin
 
 volumes:
-  postgres_data:
-  pgadmin_data:
+  postgres_data_test:
+  pgadmin_data_test:
 
 networks:
-  redis_network:
+  redis_network-test:
     driver: bridge
-  postgres_network:
+  postgres_network-test:
     driver: bridge

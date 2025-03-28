@@ -2,53 +2,59 @@
 
 public class TelegramHostedService(
     ILogger<TelegramHostedService> logger,
-    IServiceScopeFactory serviceScopeFactory)
-    : IHostedService
+    IServiceProvider services)
+    : BackgroundService
 {
-    private readonly CancellationTokenSource _cancellationTokenSource = new();
+    private int _executionCount;
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("Telegram Bot service is starting...");
-        Task.Run(() => StartPollingUpdatesAsync(_cancellationTokenSource.Token), cancellationToken);
-        return Task.CompletedTask;
+
+        try
+        {
+            await DoWork(stoppingToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error occurred in Telegram Bot service.");
+            throw;
+        }
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
+    private async Task DoWork(CancellationToken stoppingToken)
     {
-        logger.LogInformation("Telegram Bot service is stopping...");
-        _cancellationTokenSource.Cancel();
-        return Task.CompletedTask;
-    }
+        var count = Interlocked.Increment(ref _executionCount);
+        logger.LogInformation("Telegram Bot service is working. Count: {Count}", count);
 
-    private async Task StartPollingUpdatesAsync(CancellationToken cancellationToken)
-    {
-        using var scope = serviceScopeFactory.CreateScope();
+        using var scope = services.CreateScope();
         var botService = scope.ServiceProvider.GetRequiredService<TelegramBotService>();
-        await PollUpdatesAsync(botService, cancellationToken);
-    }
-
-    private async Task PollUpdatesAsync(TelegramBotService botService, CancellationToken cancellationToken)
-    {
+        
         var offset = 0;
-        while (!cancellationToken.IsCancellationRequested)
+        while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                var updates = await botService.GetUpdatesAsync(offset, cancellationToken);
+                var updates = await botService.GetUpdatesAsync(offset, stoppingToken);
 
                 foreach (var update in updates)
                 {
-                    await botService.HandleUpdateAsync(update, cancellationToken);
+                    await botService.HandleUpdateAsync(update, stoppingToken);
                     offset = update.Id + 1;
                 }
-                await Task.Delay(500, cancellationToken);
+                await Task.Delay(1000, stoppingToken);
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error occurred while polling Telegram updates.");
-                await Task.Delay(500, cancellationToken);
+                await Task.Delay(5000, stoppingToken);
             }
         }
+    }
+
+    public override async Task StopAsync(CancellationToken stoppingToken)
+    {
+        logger.LogInformation("Telegram Bot service is stopping...");
+        await base.StopAsync(stoppingToken);
     }
 }

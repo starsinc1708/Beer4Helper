@@ -16,6 +16,26 @@ public class TelegramBotService(
     ReactionDbContext dbContext)
 {
     private readonly TelegramBotSettings _settings = settings.Value;
+    
+    public async Task<IEnumerable<Update>> GetUpdatesAsync(int offset, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await botClient.GetUpdates(offset: offset, cancellationToken: cancellationToken, allowedUpdates: [
+                UpdateType.Message,
+                UpdateType.CallbackQuery,
+                UpdateType.MyChatMember,
+                UpdateType.MessageReaction,
+                UpdateType.MessageReactionCount
+            ]);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error getting updates from Telegram.");
+            return [];
+        }
+    }
+    
     public async Task HandleUpdateAsync(Update update, CancellationToken cancellationToken)
     {
         try
@@ -246,95 +266,95 @@ public class TelegramBotService(
     }
     
     private async Task HandleCommand(Message message, CancellationToken cancellationToken)
-{
-    var chatId = message.Chat.Id;
-    var textParts = message.Text?.Trim().Split("@")!;
-    if (textParts.Length <= 1) return;
-    
-    var command = textParts[0];
-    var commandUsername = textParts[1].Split(' ')[0];
-    
-    var botUsername = (await botClient.GetMe(cancellationToken: cancellationToken)).Username;
+    {
+        var chatId = message.Chat.Id;
+        var textParts = message.Text?.Trim().Split("@")!;
+        if (textParts.Length <= 1) return;
+        
+        var command = textParts[0];
+        var commandUsername = textParts[1].Split(' ')[0];
+        
+        var botUsername = (await botClient.GetMe(cancellationToken: cancellationToken)).Username;
 
-    if (commandUsername != botUsername) return;
-    
-    var commandParts = textParts[1].Split(' ');
-    var args = commandParts.Skip(1).ToArray();
-    
-    var period = DateTime.UtcNow.AddMonths(-1);
-    var topCount = 10;
-    var periodPrefix = 1;
-    var periodPostfix = "m";
-    
-    foreach (var arg in args)
-    {
-        if (arg.StartsWith("top") && int.TryParse(arg[3..], out var count))
+        if (commandUsername != botUsername) return;
+        
+        var commandParts = textParts[1].Split(' ');
+        var args = commandParts.Skip(1).ToArray();
+        
+        var period = DateTime.UtcNow.AddMonths(-1);
+        var topCount = 10;
+        var periodPrefix = 1;
+        var periodPostfix = "m";
+        
+        foreach (var arg in args)
         {
-            topCount = Math.Clamp(count, 1, 25);
+            if (arg.StartsWith("top") && int.TryParse(arg[3..], out var count))
+            {
+                topCount = Math.Clamp(count, 1, 25);
+            }
+            else if (arg.EndsWith('d') && int.TryParse(arg[..^1], out var days))
+            {
+                period = DateTime.UtcNow.AddDays(-days);
+                periodPrefix = days;
+                periodPostfix = "d";
+            }
+            else if (arg.EndsWith('w') && int.TryParse(arg[..^1], out var weeks))
+            {
+                period = DateTime.UtcNow.AddDays(-weeks * 7);
+                periodPrefix = weeks;
+                periodPostfix = "w";
+            }
+            else if (arg.EndsWith('m') && int.TryParse(arg[..^1], out var months))
+            {
+                period = DateTime.UtcNow.AddMonths(-months);
+                periodPrefix = months;
+                periodPostfix = "m";
+            }
         }
-        else if (arg.EndsWith('d') && int.TryParse(arg[..^1], out var days))
-        {
-            period = DateTime.UtcNow.AddDays(-days);
-            periodPrefix = days;
-            periodPostfix = "d";
-        }
-        else if (arg.EndsWith('w') && int.TryParse(arg[..^1], out var weeks))
-        {
-            period = DateTime.UtcNow.AddDays(-weeks * 7);
-            periodPrefix = weeks;
-            periodPostfix = "w";
-        }
-        else if (arg.EndsWith('m') && int.TryParse(arg[..^1], out var months))
-        {
-            period = DateTime.UtcNow.AddMonths(-months);
-            periodPrefix = months;
-            periodPostfix = "m";
-        }
-    }
 
-    if (!command.StartsWith("/help"))
-    {
-        logger.LogInformation($"Command '{command}' will be executed with parameters: " +
-                              $"Period = {periodPrefix}{periodPostfix}, " +
-                              $"TopCount = {topCount}");
+        if (!command.StartsWith("/help"))
+        {
+            logger.LogInformation($"Command '{command}' will be executed with parameters: " +
+                                  $"Period = {periodPrefix}{periodPostfix}, " +
+                                  $"TopCount = {topCount}");
+        }
+        
+        switch (command)
+        {
+            case "/help":
+                logger.LogInformation("Executing /help command");
+                await botClient.SendMessage(chatId, 
+                    "Команды:\n" +
+                    $"/topusers@{botUsername} [period] [topX] - топ пользователей.\n" +
+                    $"/topphotos@{botUsername} [period] [topX] - топ фото.\n" +
+                    $"/topreactions@{botUsername} [period] [topX] - топ реакций.\n" +
+                    $"/topinteractions@{botUsername} [period] [topX] - кто сколько реагировал.\n\n" +
+                    "Параметры:\n" +
+                    "period - период (1d, 2w, 3m)\n" +
+                    "topX - количество элементов (top5, top10)",
+                    parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                break;
+            case "/topusers":
+                var topUsers = await GetTopUsersAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
+                await botClient.SendMessage(chatId, topUsers, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                break;
+            case "/topinteractions":
+                var topInteractions = await GetTopInteractionsAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
+                await botClient.SendMessage(chatId, topInteractions, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                break;
+            case "/topphotos":
+                var topPhotos = await GetTopPhotosAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
+                await botClient.SendMessage(chatId, topPhotos, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                break;
+            case "/topreactions":
+                var topReactions = await GetTopReactionsAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
+                await botClient.SendMessage(chatId, topReactions, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                break;
+            default:
+                logger.LogWarning($"Unknown command received: {command}");
+                break;
+        }
     }
-    
-    switch (command)
-    {
-        case "/help":
-            logger.LogInformation("Executing /help command");
-            await botClient.SendMessage(chatId, 
-                "Команды:\n" +
-                $"/topusers@{botUsername} [period] [topX] - топ пользователей.\n" +
-                $"/topphotos@{botUsername} [period] [topX] - топ фото.\n" +
-                $"/topreactions@{botUsername} [period] [topX] - топ реакций.\n" +
-                $"/topinteractions@{botUsername} [period] [topX] - кто сколько реагировал.\n\n" +
-                "Параметры:\n" +
-                "period - период (1d, 2w, 3m)\n" +
-                "topX - количество элементов (top5, top10)",
-                parseMode: ParseMode.Html, cancellationToken: cancellationToken);
-            break;
-        case "/topusers":
-            var topUsers = await GetTopUsersAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
-            await botClient.SendMessage(chatId, topUsers, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
-            break;
-        case "/topinteractions":
-            var topInteractions = await GetTopInteractionsAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
-            await botClient.SendMessage(chatId, topInteractions, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
-            break;
-        case "/topphotos":
-            var topPhotos = await GetTopPhotosAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
-            await botClient.SendMessage(chatId, topPhotos, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
-            break;
-        case "/topreactions":
-            var topReactions = await GetTopReactionsAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
-            await botClient.SendMessage(chatId, topReactions, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
-            break;
-        default:
-            logger.LogWarning($"Unknown command received: {command}");
-            break;
-    }
-}
 
     private async Task<string> GetTopUsersAsync(DateTime period, int periodPrefix, string periodPostfix, int topCount,
         CancellationToken cancellationToken)
@@ -478,24 +498,5 @@ public class TelegramBotService(
         return topReactions.Count != 0
             ? resultMsg.ToString()
             : $"Нет данных о реакциях за {periodPrefix}{periodPostfix}.";
-    }
-
-    public async Task<IEnumerable<Update>> GetUpdatesAsync(int offset, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await botClient.GetUpdates(offset: offset, cancellationToken: cancellationToken, allowedUpdates: [
-                UpdateType.Message,
-                UpdateType.CallbackQuery,
-                UpdateType.MyChatMember,
-                UpdateType.MessageReaction,
-                UpdateType.MessageReactionCount
-            ]);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error getting updates from Telegram.");
-            return [];
-        }
     }
 }
