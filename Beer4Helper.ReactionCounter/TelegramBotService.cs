@@ -345,7 +345,7 @@ public class TelegramBotService(
                 await botClient.SendMessage(chatId, topInteractions, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                 break;
             case "/topphotos":
-                var topPhotos = await GetTopPhotosAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
+                var topPhotos = await GetTopPhotosAsync(chatId, period, periodPrefix, periodPostfix, topCount, cancellationToken);
                 await botClient.SendMessage(chatId, topPhotos, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                 break;
             case "/topreactions":
@@ -432,12 +432,12 @@ public class TelegramBotService(
     }
 
 
-    private async Task<string> GetTopPhotosAsync(DateTime period, int periodPrefix, string periodPostfix, int topCount,
+    public async Task<string> GetTopPhotosAsync(long chatId, DateTime period, int periodPrefix, string periodPostfix, int topCount,
         CancellationToken cancellationToken)
     {
         var topPhotos = await dbContext.PhotoMessages
             .AsNoTracking()
-            .Where(p => p.CreatedAt > period)
+            .Where(p => p.CreatedAt > period && p.ChatId == chatId)
             .Join(dbContext.Reactions, 
                 photo => photo.MessageId, 
                 reaction => reaction.MessageId, 

@@ -13,7 +13,7 @@ public class TelegramHostedService(
     
     private int _executionCount;
     private DateTime _nextTopUsersCheck;
-    private const bool TestMode = true;
+    private const bool TestMode = false;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -64,6 +64,9 @@ public class TelegramHostedService(
             {
                 var topUserMsg = await botService.GetTopUsersAsync(chatId, DateTime.UtcNow.AddMonths(-1), 1, "m", 10, stoppingToken);
                 await botService.SendMessage(chatId, topUserMsg, stoppingToken);
+                
+                var topPhotos = await botService.GetTopPhotosAsync(chatId, DateTime.UtcNow.AddMonths(-1), 1, "m", 10, stoppingToken);
+                await botService.SendMessage(chatId, topPhotos, stoppingToken);
             }
                 
             _nextTopUsersCheck = TestMode ? CalculateNextMinuteTime() : CalculateNextMonthlyTopUsersTime();
