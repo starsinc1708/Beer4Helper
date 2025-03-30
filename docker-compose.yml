@@ -17,6 +17,7 @@ services:
       - TelegramBotSettings__ReactionChatIds__0=-1002265344874
       - TelegramBotSettings__CommandChatIds__0=-1002257766850
       - TelegramBotSettings__CommandChatIds__1=-1002490626579
+      - TelegramBotSettings__CommandChatIds__2=-1002265344874
     restart: always
     networks:
       - postgres_network

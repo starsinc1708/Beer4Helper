@@ -41,7 +41,8 @@ public class TelegramBotService(
         try
         {
             logger.LogInformation($"Update received: {update.Type}");
-            
+            logger.LogInformation(string.Join(',', _settings.ReactionChatIds));
+            logger.LogInformation(string.Join(',', _settings.CommandChatIds));
             if (update.Type == UpdateType.MyChatMember)
             {
                 logger.LogInformation($"My chat member update: {update.MyChatMember!.Chat.Id}");

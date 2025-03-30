@@ -13,7 +13,7 @@ public class TelegramHostedService(
     
     private int _executionCount;
     private DateTime _nextTopUsersCheck;
-    private const bool TestMode = false;
+    private const bool TestMode = true;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -58,8 +58,6 @@ public class TelegramHostedService(
         try
         {
             logger.LogInformation("It's time to get top users! Current UTC time: {CurrentTime}", now);
-            logger.LogInformation(string.Join(',', _settings.ReactionChatIds));
-            logger.LogInformation(string.Join(',', _settings.CommandChatIds));
             foreach (var chatId in _settings.ReactionChatIds.Distinct())
             {
                 var topUserMsg = await botService.GetTopUsersAsync(chatId, DateTime.UtcNow.AddMonths(-1), 1, "m", 10, stoppingToken);
@@ -75,6 +73,7 @@ public class TelegramHostedService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Error occurred while getting top users.");
+            _nextTopUsersCheck = TestMode ? CalculateNextMinuteTime() : CalculateNextMonthlyTopUsersTime();
         }
     }
 
