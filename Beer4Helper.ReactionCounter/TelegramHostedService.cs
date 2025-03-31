@@ -13,15 +13,20 @@ public class TelegramHostedService(
     
     private int _executionCount;
     private DateTime _nextTopUsersCheck;
-    private const bool TestMode = true;
+    private const bool TestMode = false;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("Telegram Bot service is starting...");
         _nextTopUsersCheck = TestMode ? CalculateNextMinuteTime() : CalculateNextMonthlyTopUsersTime();
+        
         try
         {
-            await DoWork(stoppingToken);
+            // Запускаем обе задачи параллельно
+            var pollingTask = DoPollingWork(stoppingToken);
+            var notificationTask = DoNotificationWork(stoppingToken);
+            
+            await Task.WhenAll(pollingTask, notificationTask);
         }
         catch (Exception ex)
         {
@@ -49,16 +54,49 @@ public class TelegramHostedService(
         return DateTime.UtcNow.AddMinutes(1);
     }
 
-    private async Task CheckTopUsersAsync(TelegramBotService botService,
-        CancellationToken stoppingToken)
+    private async Task DoNotificationWork(CancellationToken stoppingToken)
     {
-        var now = DateTime.UtcNow;
-        if (now < _nextTopUsersCheck) return; 
+        logger.LogInformation("Notification check service is starting...");
         
-        try
+        while (!stoppingToken.IsCancellationRequested)
         {
-            logger.LogInformation("It's time to get top users! Current UTC time: {CurrentTime}", now);
-            foreach (var chatId in _settings.ReactionChatIds.Distinct())
+            try
+            {
+                var now = DateTime.UtcNow;
+                var timeRemaining = _nextTopUsersCheck - now;
+                logger.LogInformation("Time remaining until next top users check: {TimeRemaining}", 
+                    timeRemaining.ToString(@"dd\.hh\:mm\:ss"));
+                
+                if (now >= _nextTopUsersCheck)
+                {
+                    await SendNotifications(stoppingToken);
+                }
+                
+                await Task.Delay(TimeSpan.FromSeconds(600), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogInformation("Notification check service is stopping...");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in notification check service");
+                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+            }
+        }
+    }
+
+    private async Task SendNotifications(CancellationToken stoppingToken)
+    {
+        logger.LogInformation("It's time to get top users! Current UTC time: {CurrentTime}", DateTime.UtcNow);
+        
+        using var scope = services.CreateScope();
+        var botService = scope.ServiceProvider.GetRequiredService<TelegramBotService>();
+
+        foreach (var chatId in _settings.ReactionChatIds.Distinct())
+        {
+            try
             {
                 var topUserMsg = await botService.GetTopUsersAsync(chatId, DateTime.UtcNow.AddMonths(-1), 1, "m", 10, stoppingToken);
                 await botService.SendMessage(chatId, topUserMsg, stoppingToken);
@@ -66,31 +104,29 @@ public class TelegramHostedService(
                 var topPhotos = await botService.GetTopPhotosAsync(chatId, DateTime.UtcNow.AddMonths(-1), 1, "m", 10, stoppingToken);
                 await botService.SendMessage(chatId, topPhotos, stoppingToken);
             }
-                
-            _nextTopUsersCheck = TestMode ? CalculateNextMinuteTime() : CalculateNextMonthlyTopUsersTime();
-            logger.LogInformation("Next top users check scheduled for {NextCheck}", _nextTopUsersCheck);
+            catch (Exception ex)
+            {
+                logger.LogError(ex, $"Error sending notification to chat {chatId}");
+            }
         }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error occurred while getting top users.");
-            _nextTopUsersCheck = TestMode ? CalculateNextMinuteTime() : CalculateNextMonthlyTopUsersTime();
-        }
+        
+        _nextTopUsersCheck = TestMode ? CalculateNextMinuteTime() : CalculateNextMonthlyTopUsersTime();
+        logger.LogInformation("Next top users check scheduled for {NextCheck}", _nextTopUsersCheck);
     }
 
-    private async Task DoWork(CancellationToken stoppingToken)
+    private async Task DoPollingWork(CancellationToken stoppingToken)
     {
         var count = Interlocked.Increment(ref _executionCount);
-        logger.LogInformation("Telegram Bot service is working. Count: {Count}", count);
+        logger.LogInformation("Telegram polling service is working. Count: {Count}", count);
 
         using var scope = services.CreateScope();
         var botService = scope.ServiceProvider.GetRequiredService<TelegramBotService>();
         var offset = 0;
+        
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await CheckTopUsersAsync(botService, stoppingToken);
-                
                 var updates = await botService.GetUpdatesAsync(offset, stoppingToken);
 
                 foreach (var update in updates)
@@ -100,6 +136,11 @@ public class TelegramHostedService(
                 }
                 
                 await Task.Delay(1000, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogInformation("Telegram polling service is stopping...");
+                throw;
             }
             catch (Exception ex)
             {
