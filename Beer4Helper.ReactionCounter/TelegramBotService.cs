@@ -40,13 +40,9 @@ public class TelegramBotService(
     {
         try
         {
-            logger.LogInformation($"Update received: {update.Type}");
-            logger.LogInformation(string.Join(',', _settings.ReactionChatIds));
-            logger.LogInformation(string.Join(',', _settings.CommandChatIds));
-            if (update.Type == UpdateType.MyChatMember)
-            {
-                logger.LogInformation($"My chat member update: {update.MyChatMember!.Chat.Id}");
-            }
+            logger.LogInformation(update.Type == UpdateType.MyChatMember
+                ? $"My chat member update: {update.MyChatMember!.Chat.Id}"
+                : $"Update received: {update.Type}");
             
             switch (update)
             {
@@ -78,7 +74,7 @@ public class TelegramBotService(
         var chatId = reactionUpdate.Chat.Id;
         var userId = reactionUpdate.User?.Id ?? reactionUpdate.ActorChat?.Id ?? -1;
         var username = reactionUpdate.User?.Username ?? string.Empty;
-        
+
         foreach (var reaction in newReactions)
         {
             var emoji = ExtractReactionValue(reaction);
@@ -96,17 +92,21 @@ public class TelegramBotService(
                 await RemoveReaction(chatId, userId, messageId, emoji, cancellationToken);
             }
         }
+
+        return;
+
+        static string ExtractReactionValue(ReactionType reaction)
+        {
+            return reaction switch
+            {
+                ReactionTypeEmoji emojiReaction => emojiReaction.Emoji,
+                ReactionTypeCustomEmoji customEmojiReaction => customEmojiReaction.CustomEmojiId,
+                _ => "Unknown"
+            };
+        }
     }
     
-    private static string ExtractReactionValue(ReactionType reaction)
-    {
-        return reaction switch
-        {
-            ReactionTypeEmoji emojiReaction => emojiReaction.Emoji,
-            ReactionTypeCustomEmoji customEmojiReaction => customEmojiReaction.CustomEmojiId,
-            _ => "Unknown"
-        };
-    }
+    
 
     private async Task HandleMessage(Message message, CancellationToken cancellationToken)
     {
@@ -142,49 +142,6 @@ public class TelegramBotService(
 
         await dbContext.Reactions.AddAsync(reaction, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
-
-        await UpdateUserStats(chatId, userId, username, messageId, cancellationToken);
-    }
-    
-    private async Task UpdateUserStats(long chatId, long userId, string username, long messageId,
-        CancellationToken cancellationToken)
-    {
-        var userStats = await dbContext.UserStats
-            .Where(u => u.Id == userId)
-            .FirstOrDefaultAsync(cancellationToken: cancellationToken);
-
-        if (userStats == null)
-        {
-            userStats = new UserStats
-            {
-                Id = userId,
-                Username = username,
-                TotalReactions = 1,
-                TotalReactionsOnOwnMessages = 0,
-                TotalReactionsOnOthersMessages = 1,
-                TotalPhotosUploaded = 0
-            };
-
-            await dbContext.UserStats.AddAsync(userStats, cancellationToken);
-        }
-        else
-        {
-            userStats.TotalReactions++;
-            
-            var message = await dbContext.PhotoMessages
-                .Where(m => m.ChatId == chatId && m.MessageId == messageId)
-                .FirstOrDefaultAsync(cancellationToken: cancellationToken);
-
-            if (message != null && message.UserId == userId)
-            {
-                userStats.TotalReactionsOnOwnMessages++;
-            }
-            else
-            {
-                userStats.TotalReactionsOnOthersMessages++;
-            }
-        }
-        await dbContext.SaveChangesAsync(cancellationToken);
     }
     
     private async Task RemoveReaction(long chatId, long userId, long messageId, string emoji,
@@ -197,33 +154,9 @@ public class TelegramBotService(
         if (reaction != null)
         {
             dbContext.Reactions.Remove(reaction);
-            
-            var userStats = await dbContext.UserStats
-                .Where(u => u.Id == userId)
-                .FirstOrDefaultAsync(cancellationToken: cancellationToken);
-
-            if (userStats != null)
-            {
-                userStats.TotalReactions--;
-                
-                var message = await dbContext.PhotoMessages
-                    .Where(m => m.ChatId == chatId && m.MessageId == messageId)
-                    .FirstOrDefaultAsync(cancellationToken: cancellationToken);
-
-                if (message != null && message.UserId == userId)
-                {
-                    userStats.TotalReactionsOnOwnMessages--;
-                }
-                else
-                {
-                    userStats.TotalReactionsOnOthersMessages--;
-                }
-            }
-
             await dbContext.SaveChangesAsync(cancellationToken);
         }
     }
-
 
     private async Task SavePhotoMessage(Message message, CancellationToken cancellationToken)
     {
@@ -240,34 +173,152 @@ public class TelegramBotService(
             
             await dbContext.PhotoMessages.AddAsync(photoMessage, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
-            
-            
-            var userStats = await dbContext.UserStats
-                .Where(stat => stat.Id == message.From!.Id)
-                .FirstOrDefaultAsync(cancellationToken: cancellationToken);
-            
-            if (userStats is null)
-            {
-                userStats = new UserStats
-                {
-                    Id = message.From!.Id,
-                    Username = message.From.Username,
-                    TotalReactions = 0,
-                    TotalReactionsOnOwnMessages = 0,
-                    TotalReactionsOnOthersMessages = 0,
-                    TotalPhotosUploaded = 1
-                };
-                await dbContext.UserStats.AddAsync(userStats, cancellationToken);
-            }
-            else
-            {
-                userStats.TotalPhotosUploaded++;
-            }
-
-            await dbContext.SaveChangesAsync(cancellationToken);
         }
     }
+
+    public async Task<List<ChatMember>> GetChatMembers(long chatId, CancellationToken cancellationToken)
+    {
+        var userIdsFromDb = await dbContext.Reactions
+            .AsNoTracking()
+            .Where(r => r.ChatId == chatId)
+            .Select(r => r.UserId).Distinct()
+            .ToListAsync(cancellationToken);
+        
+        var chatMembers = new List<ChatMember>();
+        foreach (var userId in userIdsFromDb)
+        {
+            chatMembers.Add(await botClient.GetChatMember(chatId, userId, cancellationToken));
+        }
+        return chatMembers;
+    }
+
+    public async Task<List<UserStats>> GenerateUserStats(long chatId, CancellationToken cancellationToken)
+    {
+        var chatMembers = await GetChatMembers(chatId, cancellationToken);
+        
+        var allPhotoMessages = await dbContext.PhotoMessages
+            .Where(pm => pm.ChatId == chatId)
+            .OrderBy(pm => pm.UserId)
+            .ThenBy(pm => pm.CreatedAt)
+            .ToListAsync(cancellationToken);
+        
+        var userPhotoGroups = allPhotoMessages
+            .GroupBy(pm => pm.UserId)
+            .ToList();
+        
+        var uniqueMessagesCount = new Dictionary<long, int>();
+
+        foreach (var userGroup in userPhotoGroups)
+        {
+            var count = 0;
+            PhotoMessage? previousMessage = null;
+            
+            foreach (var message in userGroup)
+            {
+                if (previousMessage == null || 
+                    (message.CreatedAt - previousMessage.CreatedAt).TotalSeconds > 2)
+                {
+                    count++;
+                }
+                previousMessage = message;
+            }
+            
+            uniqueMessagesCount[userGroup.Key] = count;
+        }
+
+        var reactionsStats = await dbContext.Reactions
+            .Where(r => r.ChatId == chatId)
+            .GroupBy(r => r.UserId)
+            .Select(g => new
+            {
+                UserId = g.Key,
+                TotalReactions = g.Count(),
+                ReactionsOnOwnMessages = dbContext.Reactions
+                    .Join(dbContext.PhotoMessages,
+                        r => r.MessageId,
+                        pm => pm.MessageId,
+                        (r, pm) => new { Reaction = r, PhotoMessage = pm })
+                    .Count(x => x.Reaction.UserId == g.Key && 
+                              x.PhotoMessage.UserId == g.Key && 
+                              x.Reaction.ChatId == chatId)
+            })
+            .ToListAsync(cancellationToken);
+        
+        var photosStats = await dbContext.PhotoMessages
+            .Where(pm => pm.ChatId == chatId)
+            .GroupBy(pm => pm.UserId)
+            .Select(g => new
+            {
+                UserId = g.Key,
+                TotalPhotosUploaded = g.Count()
+            })
+            .ToListAsync(cancellationToken);
+
+        return (from member in chatMembers
+            let userId = member.User.Id
+            let username = member.User.Username ?? string.Empty
+            let reactionsStat = reactionsStats.FirstOrDefault(s => s.UserId == userId)
+            let photosStat = photosStats.FirstOrDefault(s => s.UserId == userId)
+            select new UserStats
+            {
+                Id = $"{userId}:{chatId}",
+                Username = username,
+                ChatId = chatId,
+                UserId = userId,
+                TotalReactions = reactionsStat?.TotalReactions ?? 0,
+                TotalReactionsOnOwnMessages = reactionsStat?.ReactionsOnOwnMessages ?? 0,
+                TotalReactionsOnOthersMessages = (reactionsStat?.TotalReactions ?? 0) - 
+                                               (reactionsStat?.ReactionsOnOwnMessages ?? 0),
+                TotalPhotosUploaded = photosStat?.TotalPhotosUploaded ?? 0,
+                TotalUniqueMessages = uniqueMessagesCount.GetValueOrDefault(userId, 0)
+            }).ToList();
+    }
     
+    public async Task UpdateUserStats(CancellationToken stoppingToken)
+    {
+        foreach (var chatId in await dbContext.Reactions.Select(r => r.ChatId).Distinct().ToListAsync(stoppingToken))
+        {
+            await UpdateUserStatForChat(chatId, stoppingToken);
+        }
+    }
+
+    public async Task<List<UserStats>> UpdateUserStatForChat(long chatId, CancellationToken stoppingToken)
+    {
+        try
+        {
+            var stats = await GenerateUserStats(chatId, stoppingToken);
+            
+            foreach (var stat in stats)
+            {
+                var existingStat = await dbContext.UserStats
+                    .FirstOrDefaultAsync(s => s.Id == stat.Id && s.ChatId == chatId, stoppingToken);
+
+                if (existingStat == null)
+                {
+                    dbContext.UserStats.Add(stat);
+                }
+                else
+                {
+                    existingStat.Username = stat.Username;
+                    existingStat.TotalReactions = stat.TotalReactions;
+                    existingStat.TotalReactionsOnOwnMessages = stat.TotalReactionsOnOwnMessages;
+                    existingStat.TotalReactionsOnOthersMessages = stat.TotalReactionsOnOthersMessages;
+                    existingStat.TotalPhotosUploaded = stat.TotalPhotosUploaded;
+                    existingStat.TotalUniqueMessages = stat.TotalUniqueMessages;
+                }
+            }
+                
+            await dbContext.SaveChangesAsync(stoppingToken);
+            logger.LogInformation("Updated stats for chat {ChatId}", chatId);
+            return stats;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, $"Error updating stats for chat {chatId}");
+            return [];
+        }
+    }
+
     private async Task HandleCommand(Message message, CancellationToken cancellationToken)
     {
         var chatId = message.Chat.Id;
@@ -342,7 +393,7 @@ public class TelegramBotService(
                 await botClient.SendMessage(chatId, topUsers, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                 break;
             case "/topinteractions":
-                var topInteractions = await GetTopInteractionsAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
+                var topInteractions = await GetTopInteractionsAsync(chatId, period, periodPrefix, periodPostfix, topCount, cancellationToken);
                 await botClient.SendMessage(chatId, topInteractions, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                 break;
             case "/topphotos":
@@ -350,7 +401,7 @@ public class TelegramBotService(
                 await botClient.SendMessage(chatId, topPhotos, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                 break;
             case "/topreactions":
-                var topReactions = await GetTopReactionsAsync(period, periodPrefix, periodPostfix, topCount, cancellationToken);
+                var topReactions = await GetTopReactionsAsync(chatId, period, periodPrefix, periodPostfix, topCount, cancellationToken);
                 await botClient.SendMessage(chatId, topReactions, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                 break;
             default:
@@ -360,39 +411,32 @@ public class TelegramBotService(
     }
 
     public async Task<string> GetTopUsersAsync(long chatId, DateTime period, int periodPrefix, string periodPostfix,
-        int topCount,
-        CancellationToken cancellationToken)
+        int topCount, CancellationToken cancellationToken)
     {
-        var userStats = await dbContext.PhotoMessages
-            .Where(p => p.CreatedAt >= period && p.ChatId == chatId)
-            .Join(
-                dbContext.UserStats,
-                photo => photo.UserId,
-                userStat => userStat.Id,
-                (photo, userStat) => new { Photo = photo, UserStat = userStat }
-            )
-            .GroupJoin(
-                dbContext.Reactions,
-                x => x.Photo.MessageId,
-                reaction => reaction.MessageId,
-                (x, reactions) => new {
-                    x.Photo.UserId,
-                    x.UserStat.Username,
-                    ReactionsCount = reactions.Count()
-                }
-            )
-            .GroupBy(x => new { x.UserId, x.Username })
-            .Select(g => new {
-                Username = g.Key.Username,
-                TotalReactions = g.Sum(x => x.ReactionsCount),
-                PhotosCount = g.Count()
+        var userStats = await dbContext.UserStats
+            .Where(u => u.ChatId == chatId)
+            .Select(u => new
+            {
+                u.Username,
+                u.TotalReactions,
+                u.TotalPhotosUploaded,
+                RecentReactions = dbContext.Reactions
+                    .Count(r => r.ChatId == chatId && 
+                                dbContext.PhotoMessages.Any(p => 
+                                    p.MessageId == r.MessageId && 
+                                    p.UserId == u.UserId &&
+                                    p.CreatedAt >= period)),
+                RecentPhotos = dbContext.PhotoMessages
+                    .Count(p => p.ChatId == chatId && 
+                                p.UserId == u.UserId &&
+                                p.CreatedAt >= period)
             })
-            .OrderByDescending(x => x.TotalReactions)
+            .OrderByDescending(u => u.RecentReactions)
             .Take(topCount)
             .ToListAsync(cancellationToken);
-    
-        var resultMsg = new StringBuilder($"<b>На их фото реагировали больше всего!</b>\n<i>(за {periodPrefix}{periodPostfix})</i>\n\n"); 
-    
+
+        var resultMsg = new StringBuilder($"<b>На их фото реагировали больше всего!</b>\n<i>(за {periodPrefix}{periodPostfix})</i>\n\n");
+
         if (userStats.Count == 0)
         {
             return $"Нет данных о реакциях на фото пользователей за {periodPrefix}{periodPostfix}.";
@@ -402,29 +446,28 @@ public class TelegramBotService(
         foreach (var user in userStats)
         {
             resultMsg.AppendLine(
-                $"<b>{index++}. @{user.Username}</b> - " +
-                $"<b>{user.TotalReactions} шт.</b> (за {user.PhotosCount} фото)");
+                $"<b>{index++}. @{user.Username}</b> - <b>{user.RecentReactions} шт.</b> (<b>{user.RecentPhotos}</b> фото)");
         }
 
         return resultMsg.ToString();
     }
 
-    private async Task<string> GetTopInteractionsAsync(DateTime period, int periodPrefix, string periodPostfix,
+    public async Task<string> GetTopInteractionsAsync(long chatId, DateTime period, int periodPrefix, string periodPostfix,
         int topCount,
         CancellationToken cancellationToken)
     {
         var topUsers = await dbContext.UserStats
             .AsNoTracking()
-            .Where(u => u.Id != 0)
+            .Where(u => u.UserId != 0 && u.ChatId == chatId)
             .OrderByDescending(u => u.TotalReactions)
             .Take(topCount)
             .ToListAsync(cancellationToken: cancellationToken);
 
-        var resultMsg = new StringBuilder($"<b>Кто же поставил больше всего реакций?</b>\n<i>(за {periodPrefix}{periodPostfix}, (на свои + на чужие) )</i>\n");
+        var resultMsg = new StringBuilder($"<b>Кто же поставил больше всего реакций?</b>\n<i>(за {periodPrefix}{periodPostfix}, (на свои + на чужие) )</i>\n\n");
         var index = 1;
         foreach (var u in topUsers)
         {
-            resultMsg.Append($"<b>{index++}. @{u.Username}</b> - {u.TotalReactions} реакций ({u.TotalReactionsOnOwnMessages} + {u.TotalReactionsOnOthersMessages})");
+            resultMsg.Append($"<b>{index++}. @{u.Username}</b> - <b>{u.TotalReactions}</b> шт. ({u.TotalReactionsOnOwnMessages} + {u.TotalReactionsOnOthersMessages})");
             resultMsg.Append('\n');
         }
         return topUsers.Count != 0
@@ -454,7 +497,7 @@ public class TelegramBotService(
             .Take(topCount)
             .ToListAsync(cancellationToken: cancellationToken);
 
-        var resultMsg = new StringBuilder($"<b>Какие фото вызвали больше всего изумления?</b>\n<i>(за {periodPrefix}{periodPostfix})</i>\n");
+        var resultMsg = new StringBuilder($"<b>Какие фото вызвали больше всего изумления?</b>\n<i>(за {periodPrefix}{periodPostfix})</i>\n\n");
         var index = 1;
 
         foreach (var p in topPhotos)
@@ -470,7 +513,7 @@ public class TelegramBotService(
     }
 
 
-    private async Task<string> GetTopReactionsAsync(DateTime period, int periodPrefix, string periodPostfix,
+    public async Task<string> GetTopReactionsAsync(long chatId, DateTime period, int periodPrefix, string periodPostfix,
         int topCount,
         CancellationToken cancellationToken)
     {
@@ -478,7 +521,7 @@ public class TelegramBotService(
         
         var topReactions = await dbContext.Reactions
             .AsNoTracking()
-            .Where(r => r.CreatedAt > period && photoMsgIds.Contains((int)r.MessageId))
+            .Where(r => r.CreatedAt > period && r.ChatId == chatId && photoMsgIds.Contains((int)r.MessageId))
             .GroupBy(r => r.Emoji)
             .Select(group => new
             {
@@ -489,7 +532,7 @@ public class TelegramBotService(
             .Take(topCount)
             .ToListAsync(cancellationToken);
 
-        var resultMsg = new StringBuilder($"<b>Как мы реагировали чаще всего?</b>\n<i>(за {periodPrefix}{periodPostfix}, без кастомных эмодзи)</i>\n");
+        var resultMsg = new StringBuilder($"<b>Как мы реагировали чаще всего?</b>\n<i>(за {periodPrefix}{periodPostfix}, без кастомных эмодзи)</i>\n\n");
         var index = 1;
     
         foreach (var r in topReactions.Where(r => r.Emoji!.Length <= 4))
@@ -506,5 +549,44 @@ public class TelegramBotService(
     public async Task SendMessage(long chatId, string topUserMsg, CancellationToken token)
     {
         await botClient.SendMessage(chatId, topUserMsg, parseMode: ParseMode.Html, cancellationToken: token);
+    }
+
+    public async Task EditMessage(long chatId, long messageId, string editMode, DateTime updatedAt,
+        CancellationToken token)
+    {
+        var updatedAtText = $"\n<i>Последнее обновление {updatedAt:HH:mm dd/MM/yyyy}</i>";
+        
+        switch (editMode)
+        {
+            case "photo-top":
+            {
+                var topPhotos = await GetTopPhotosAsync(chatId, DateTime.UtcNow.AddMonths(-1), 1, "m", 10, token);
+                await botClient.EditMessageText(new ChatId(chatId), (int)messageId, topPhotos + updatedAtText, ParseMode.Html, cancellationToken: token);
+                break;
+            }
+            case "user-top":
+            {
+                var topPhotos = await GetTopUsersAsync(chatId, DateTime.UtcNow.AddMonths(-1), 1, "m", 15, token);
+                await botClient.EditMessageText(new ChatId(chatId), (int)messageId, topPhotos + updatedAtText, ParseMode.Html, cancellationToken: token);
+                break;
+            }
+            case "reaction-top":
+            {
+                var topPhotos = await GetTopReactionsAsync(chatId, DateTime.UtcNow.AddMonths(-1), 1, "m", 20, token);
+                await botClient.EditMessageText(new ChatId(chatId), (int)messageId, topPhotos + updatedAtText, ParseMode.Html, cancellationToken: token);
+                break;
+            }
+        }
+    }
+
+    public async Task UpdateTopMessages(DateTime updatedAt, CancellationToken stoppingToken)
+    {
+        
+        foreach (var chatId in await dbContext.Reactions.Select(r => r.ChatId).Distinct().ToListAsync(stoppingToken))
+        {
+            await EditMessage(chatId, 159, "photo-top", updatedAt,  stoppingToken);
+            await EditMessage(chatId, 160, "user-top", updatedAt, stoppingToken);
+            await EditMessage(chatId, 161, "reaction-top", updatedAt, stoppingToken);
+        }
     }
 }

@@ -1,5 +1,4 @@
-﻿using Google.Protobuf;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 
 namespace Beer4Helper.ReactionCounter;
 
@@ -12,21 +11,25 @@ public class TelegramHostedService(
     private readonly TelegramBotSettings _settings = settings.Value;
     
     private int _executionCount;
-    private DateTime _nextTopUsersCheck;
+    private DateTime _nextStatsUpdate;
+    private DateTime _nextTopMessagesUpdate;
     private const bool TestMode = false;
+    private TelegramBotService? botService;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("Telegram Bot service is starting...");
-        _nextTopUsersCheck = TestMode ? CalculateNextMinuteTime() : CalculateNextMonthlyTopUsersTime();
         
+        using var scope = services.CreateScope();
+        botService = scope.ServiceProvider.GetRequiredService<TelegramBotService>();
+
         try
         {
-            // Запускаем обе задачи параллельно
             var pollingTask = DoPollingWork(stoppingToken);
-            var notificationTask = DoNotificationWork(stoppingToken);
+            var statsUpdateTask = DoStatsUpdateWork(stoppingToken);
+            var editTopMessagesTask = DoEditTopMessagesWork(stoppingToken);
             
-            await Task.WhenAll(pollingTask, notificationTask);
+            await Task.WhenAll(pollingTask, statsUpdateTask, editTopMessagesTask);
         }
         catch (Exception ex)
         {
@@ -34,100 +37,33 @@ public class TelegramHostedService(
             throw;
         }
     }
-
+    
     private static DateTime CalculateNextMonthlyTopUsersTime()
     {
         var now = DateTime.UtcNow;
         var lastDayOfMonth = DateTime.DaysInMonth(now.Year, now.Month);
 
         if (now.Day != lastDayOfMonth || now.Hour < 12)
-            return new DateTime(now.Year, now.Month, lastDayOfMonth, 12, 0, 0, DateTimeKind.Utc);
+            return new DateTime(now.Year, now.Month, lastDayOfMonth, 7, 0, 0, DateTimeKind.Utc);
         
         now = now.AddMonths(1);
         lastDayOfMonth = DateTime.DaysInMonth(now.Year, now.Month);
 
-        return new DateTime(now.Year, now.Month, lastDayOfMonth, 12, 0, 0, DateTimeKind.Utc);
-    }
-
-    private static DateTime CalculateNextMinuteTime()
-    {
-        return DateTime.UtcNow.AddMinutes(1);
-    }
-
-    private async Task DoNotificationWork(CancellationToken stoppingToken)
-    {
-        logger.LogInformation("Notification check service is starting...");
-        
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try
-            {
-                var now = DateTime.UtcNow;
-                var timeRemaining = _nextTopUsersCheck - now;
-                logger.LogInformation("Time remaining until next top users check: {TimeRemaining}", 
-                    timeRemaining.ToString(@"dd\.hh\:mm\:ss"));
-                
-                if (now >= _nextTopUsersCheck)
-                {
-                    await SendNotifications(stoppingToken);
-                }
-                
-                await Task.Delay(TimeSpan.FromSeconds(600), stoppingToken);
-            }
-            catch (OperationCanceledException)
-            {
-                logger.LogInformation("Notification check service is stopping...");
-                throw;
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error in notification check service");
-                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
-            }
-        }
-    }
-
-    private async Task SendNotifications(CancellationToken stoppingToken)
-    {
-        logger.LogInformation("It's time to get top users! Current UTC time: {CurrentTime}", DateTime.UtcNow);
-        
-        using var scope = services.CreateScope();
-        var botService = scope.ServiceProvider.GetRequiredService<TelegramBotService>();
-
-        foreach (var chatId in _settings.ReactionChatIds.Distinct())
-        {
-            try
-            {
-                var topUserMsg = await botService.GetTopUsersAsync(chatId, DateTime.UtcNow.AddMonths(-1), 1, "m", 10, stoppingToken);
-                await botService.SendMessage(chatId, topUserMsg, stoppingToken);
-                
-                var topPhotos = await botService.GetTopPhotosAsync(chatId, DateTime.UtcNow.AddMonths(-1), 1, "m", 10, stoppingToken);
-                await botService.SendMessage(chatId, topPhotos, stoppingToken);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, $"Error sending notification to chat {chatId}");
-            }
-        }
-        
-        _nextTopUsersCheck = TestMode ? CalculateNextMinuteTime() : CalculateNextMonthlyTopUsersTime();
-        logger.LogInformation("Next top users check scheduled for {NextCheck}", _nextTopUsersCheck);
+        return new DateTime(now.Year, now.Month, lastDayOfMonth, 7, 0, 0, DateTimeKind.Utc);
     }
 
     private async Task DoPollingWork(CancellationToken stoppingToken)
     {
         var count = Interlocked.Increment(ref _executionCount);
         logger.LogInformation("Telegram polling service is working. Count: {Count}", count);
-
-        using var scope = services.CreateScope();
-        var botService = scope.ServiceProvider.GetRequiredService<TelegramBotService>();
+        
         var offset = 0;
         
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                var updates = await botService.GetUpdatesAsync(offset, stoppingToken);
+                var updates = await botService?.GetUpdatesAsync(offset, stoppingToken)!;
 
                 foreach (var update in updates)
                 {
@@ -146,6 +82,74 @@ public class TelegramHostedService(
             {
                 logger.LogError(ex, "Error occurred while polling Telegram updates.");
                 await Task.Delay(5000, stoppingToken);
+            }
+        }
+    }
+    
+    private async Task DoStatsUpdateWork(CancellationToken stoppingToken)
+    {
+        logger.LogInformation("User stats update service is starting...");
+        
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                var now = DateTime.UtcNow;
+                if (now >= _nextStatsUpdate)
+                {
+                    await botService?.UpdateUserStats(stoppingToken)!;
+                    _nextStatsUpdate = DateTime.UtcNow.AddHours(1);
+                    logger.LogInformation("Next stats update scheduled for {NextUpdate}", _nextStatsUpdate + TimeSpan.FromHours(4));
+                }
+                
+                await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogInformation("Stats update service is stopping...");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in stats update service");
+                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+            }
+        }
+    }
+    
+    private async Task DoEditTopMessagesWork(CancellationToken stoppingToken)
+    {
+        logger.LogInformation("Editing top messages is starting...");
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                var now = DateTime.UtcNow;
+                var timeRemaining = _nextTopMessagesUpdate - now;
+                
+                if (now >= _nextTopMessagesUpdate)
+                {
+                    await botService?.UpdateTopMessages(now.AddHours(4), stoppingToken)!;
+                    _nextTopMessagesUpdate = DateTime.UtcNow.AddMinutes(10);
+                    logger.LogInformation("Next top messages update scheduled for {NextUpdate}", _nextTopMessagesUpdate + TimeSpan.FromHours(4));
+                }
+                
+                await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogInformation("Editing top messages service is stopping...");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                if (ex.Message.Contains("message is not modified"))
+                {
+                    _nextTopMessagesUpdate = DateTime.UtcNow.AddMinutes(10);
+                    logger.LogError(ex, "Error in Editing top messages service");
+                    logger.LogInformation("Next top messages update scheduled for {NextUpdate}", _nextTopMessagesUpdate + TimeSpan.FromHours(4));
+                    await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken);
+                }
             }
         }
     }

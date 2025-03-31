@@ -21,6 +21,8 @@ builder.Services.AddSingleton<IHostedService, TelegramHostedService>();
 
 var app = builder.Build();
 
+app.MapTelegramEndpoints();
+
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ReactionDbContext>();
