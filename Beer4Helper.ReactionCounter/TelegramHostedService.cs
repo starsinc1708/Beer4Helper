@@ -109,7 +109,7 @@ public class TelegramHostedService(
                 if (now >= _nextTopMessagesUpdate)
                 {
                     await _botService?.UpdateAllTopMessages(stoppingToken)!;
-                    _nextTopMessagesUpdate = DateTime.UtcNow.AddMinutes(1);
+                    _nextTopMessagesUpdate = DateTime.UtcNow.AddMinutes(10);
                     logger.LogInformation("Next top messages update scheduled for {NextUpdate}", _nextTopMessagesUpdate + TimeSpan.FromHours(4));
                 }
                 

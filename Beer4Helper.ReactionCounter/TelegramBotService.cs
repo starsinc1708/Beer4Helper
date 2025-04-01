@@ -575,8 +575,9 @@ public class TelegramBotService(
         var russianCulture = new CultureInfo("ru-RU");
         var monthName = russianCulture.DateTimeFormat.GetMonthName(now.Month);
         
-        var header = $"<b>СТАТИСТИКА ЧАТА</b>\n<i>за {monthName} {now.Year}</i>\n";
-        var footerText =  $"\n<i>Последнее обновление {now + TimeSpan.FromHours(4):HH:mm dd/MM/yyyy}</i>";
+        var header = $"<b>СТАТИСТИКА ЧАТА</b> \u2757\ufe0f\n<i>за {monthName} {now.Year}</i>";
+        var footerText =  $"<i>Последнее обновление {now + TimeSpan.FromHours(4):HH:mm dd/MM/yyyy}</i>";
+        
         var messageText = ConstructTopMessage(header, photoStats, userStats, reactionStats, footerText);
     
         await botClient.SendMessage(sendTo, messageText, parseMode: ParseMode.Html, cancellationToken: token);
@@ -606,8 +607,8 @@ public class TelegramBotService(
         var russianCulture = new CultureInfo("ru-RU");
         var monthName = russianCulture.DateTimeFormat.GetMonthName(now.Month);
         
-        var header = $"<b>СТАТИСТИКА ЧАТА</b>\n<i>за {monthName} {now.Year}</i>\n";
-        var footerText =  $"\n<i>Последнее обновление {now + TimeSpan.FromHours(4):HH:mm dd/MM/yyyy}</i>";
+        var header = $"<b>СТАТИСТИКА ЧАТА</b> \u2757\ufe0f\n<i>за {monthName} {now.Year}</i>";
+        var footerText =  $"<i>Последнее обновление {now + TimeSpan.FromHours(4):HH:mm dd/MM/yyyy}</i>";
         var messageText = ConstructTopMessage(header, photoStats, userStats, reactionStats, footerText);
     
         var topMessage = new TopMessage
@@ -645,8 +646,9 @@ public class TelegramBotService(
                 var russianCulture = new CultureInfo("ru-RU");
                 var monthName = russianCulture.DateTimeFormat.GetMonthName(now.Month);
                 
-                var header = $"<b>СТАТИСТИКА ЧАТА</b>\n<i>за {monthName} {now.Year}</i>\n";
-                var footerText =  $"\n<i>Последнее обновление {now + TimeSpan.FromHours(4):HH:mm dd/MM/yyyy}</i>";
+                var header = $"<b>СТАТИСТИКА ЧАТА</b> \u2757\ufe0f\n<i>за {monthName} {now.Year}</i>";
+                var footerText =  $"<i>Последнее обновление {now + TimeSpan.FromHours(4):HH:mm dd/MM/yyyy}</i>";
+                
                 var messageText = ConstructTopMessage(header, photoStats, userStats, reactionStats, footerText);
 
                 if (messageText == topMessage.Text) continue;
@@ -748,7 +750,7 @@ public class TelegramBotService(
     {
         var messageBuilder = new StringBuilder(header);
         
-        messageBuilder.AppendLine("\n<b>Эти фото</b> <s>почти</s> <b>никого не оставили равнодушным:</b>");
+        messageBuilder.AppendLine("<blockquote expandable><b>Эти фото</b> <s>почти</s> <b>никого не оставили равнодушным:</b>");
         if (photoStats.Count > 0)
         {
             for (var i = 0; i < photoStats.Count; i++)
@@ -762,8 +764,9 @@ public class TelegramBotService(
         {
             messageBuilder.AppendLine("Нет данных о фотографиях");
         }
+        messageBuilder.Append("</blockquote>");
         
-        messageBuilder.AppendLine("\n<b>На их фото реагировали больше всего:</b>");
+        messageBuilder.AppendLine("<blockquote expandable><b>На их фото реагировали больше всего:</b>");
         userStats = userStats.FindAll(us => us.TotalPhotos > 0);
         if (userStats.Count > 0)
         {
@@ -779,8 +782,9 @@ public class TelegramBotService(
         {
             messageBuilder.AppendLine("Нет данных о пользователях");
         }
+        messageBuilder.Append("</blockquote>");
         
-        messageBuilder.AppendLine("\n<b>Самые популярные реакции:</b>");
+        messageBuilder.AppendLine("<blockquote expandable><b>Самые популярные реакции:</b>");
         if (reactionStats.Count > 0)
         {
             for (var i = 0; i < reactionStats.Count; i++)
@@ -793,6 +797,7 @@ public class TelegramBotService(
         {
             messageBuilder.AppendLine("Нет данных о реакциях");
         }
+        messageBuilder.Append("</blockquote>");
         
         messageBuilder.AppendLine(footerText);        
         
