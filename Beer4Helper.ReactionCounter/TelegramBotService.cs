@@ -757,7 +757,7 @@ public class TelegramBotService(
             {
                 var photo = photoStats[i];
                 messageBuilder.AppendLine(
-                    $"{i + 1}. <a href=\"https://t.me/c/{photo.ChatId.ToString()[4..]}/{photo.MessageId}\">Фото</a> - {photo.TotalReactions} реакций");
+                    $"{i + 1}. <a href=\"https://t.me/c/{photo.ChatId.ToString()[4..]}/{photo.MessageId}\">Фото</a> - {photo.TotalReactions} шт.");
             }
         }
         else
@@ -775,7 +775,7 @@ public class TelegramBotService(
                 var user = userStats[i];
                 
                 messageBuilder.AppendLine(
-                    $"{i + 1}. @{user.Username} - {user.TotalReactions} реакций ({user.TotalPhotos} фото)");
+                    $"{i + 1}. @{user.Username} - {user.TotalReactions} шт. ({user.TotalPhotos} фото)");
             }
         }
         else
@@ -790,7 +790,7 @@ public class TelegramBotService(
             for (var i = 0; i < reactionStats.Count; i++)
             {
                 var reaction = reactionStats[i];
-                messageBuilder.AppendLine($"{i + 1}. {reaction.Emoji} - {reaction.Count} раз");
+                messageBuilder.AppendLine($"{i + 1}. {reaction.Emoji} - {reaction.Count} шт.");
             }
         }
         else
