@@ -18,9 +18,7 @@ services:
       - ConnectionStrings__PostgreSQL=Host=reactiondb;Port=5432;Database=reaction_bot;Username=postgres;Password=postgres
       - TelegramBotToken=7920539405:AAFPZQ56PhD4FDiiWxu3V6U0RL9OfL99Vig
       - TelegramBotSettings__ReactionChatIds__0=-1002265344874
-      - TelegramBotSettings__CommandChatIds__0=-1002257766850
-      - TelegramBotSettings__CommandChatIds__1=-1002490626579
-      - TelegramBotSettings__CommandChatIds__2=-1002265344874
+      - TelegramBotSettings__CommandChatIds__0=-1002265344874
     restart: always
     networks:
       - postgres_network
