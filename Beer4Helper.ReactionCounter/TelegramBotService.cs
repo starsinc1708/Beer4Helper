@@ -764,7 +764,8 @@ public class TelegramBotService(
         }
         
         messageBuilder.AppendLine("\n<b>На их фото реагировали больше всего:</b>");
-        if (userStats.Count > 0 && userStats.TrueForAll(u => u.TotalPhotos > 0))
+        userStats = userStats.FindAll(us => us.TotalPhotos > 0);
+        if (userStats.Count > 0)
         {
             for (var i = 0; i < userStats.Count; i++)
             {
