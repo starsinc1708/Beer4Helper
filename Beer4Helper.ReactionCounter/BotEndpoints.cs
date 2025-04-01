@@ -1,4 +1,5 @@
-﻿using Telegram.Bot.Requests;
+﻿using Microsoft.AspNetCore.Http.HttpResults;
+using Telegram.Bot.Requests;
 
 namespace Beer4Helper.ReactionCounter;
 
@@ -19,8 +20,8 @@ public static class BotEndpoints
                 }
 
                 var period = DateTime.UtcNow.AddMonths(-1);
-                var periodPrefix = 1;
-                var periodPostfix = "m";
+                const int periodPrefix = 1;
+                const string periodPostfix = "m";
                 
                 var topReactions = await botService.GetTopReactionsAsync(request.ChatId, period, periodPrefix, periodPostfix, 20, context.RequestAborted);
                 await botService.SendMessage(request.SendToChatId, topReactions, context.RequestAborted);
@@ -121,31 +122,6 @@ public static class BotEndpoints
                             context.RequestAborted);
                         await botService.SendMessage(request.SendToChatId, topInteractions, context.RequestAborted);
                         break;
-                    case "all":
-                        var reactions = await botService.GetTopReactionsAsync(
-                            request.ChatId, 
-                            period, 
-                            periodPrefix, 
-                            periodPostfix, 
-                            topCount, 
-                            context.RequestAborted);
-                        var users = await botService.GetTopUsersAsync(
-                            request.ChatId, 
-                            period, 
-                            periodPrefix, 
-                            periodPostfix, 
-                            topCount, 
-                            context.RequestAborted);
-                        var photos = await botService.GetTopPhotosAsync(
-                            request.ChatId, 
-                            period,
-                            periodPrefix,
-                            periodPostfix,
-                            topCount, 
-                            context.RequestAborted);
-                        var allInOne = photos + "\n\n" + users + "\n\n" + reactions;
-                        await botService.SendMessage(request.SendToChatId, allInOne, context.RequestAborted);
-                        break;
                     default:
                         return Results.BadRequest("Invalid request parameters");
                 }
@@ -186,21 +162,54 @@ public static class BotEndpoints
             {
                 return Results.BadRequest("Invalid request parameters");
             }
-            await botService.EditMessage(request.ChatId, request.MessageId, request.Type, DateTime.Now, context.RequestAborted);
+            await botService.EditMessage(request.ChatId, request.MessageId, request.Text, context.RequestAborted);
             return Results.Ok("message edited");
         });
+        
+        app.MapPost("/api/deleteMessage", async (HttpContext context, TelegramBotService botService) =>
+        {
+            var request = await context.Request.ReadFromJsonAsync<DeleteChatMessageRequest>();
+            if (request == null || request.ChatId == 0 || request.MessageId == 0)
+            {
+                return Results.BadRequest("Invalid request parameters");
+            }
+            await botService.DeleteMessage(request.ChatId, request.MessageId, DateTime.Now, context.RequestAborted);
+            return Results.Ok("message edited");
+        });
+
+        app.MapPost("/api/createTopMessage", async (HttpContext context, TelegramBotService botService) =>
+        {
+            var request = await context.Request.ReadFromJsonAsync<CreateTopMessageRequest>();
+            if (request == null || request.ChatId == 0)
+            {
+                return Results.BadRequest("Invalid request parameters");
+            }
+            await botService.CreateTopMessageAndSend(request.ChatId, context.RequestAborted);
+            return Results.Ok("top message created");
+        });
     }
+}
+
+public class CreateTopMessageRequest
+{
+    public long ChatId { get; set; }
 }
 
 public class ChatMemberRequest {
     public long ChatId { get; set; }
 }
 
+public class DeleteChatMessageRequest
+{
+    public long ChatId { get; set; }
+    public long MessageId { get; set; }
+}
+
 public class EditMessageRequest
 {
     public long ChatId { get; set; }
     public long MessageId { get; set; }
-    public required string Type { get; set; }
+    public required string Text { get; set; }
 }
 
 public class TopStatsRequest

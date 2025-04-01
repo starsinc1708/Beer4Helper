@@ -1,6 +1,8 @@
-﻿using System.Text;
+﻿using System.Globalization;
+using System.Text;
 using Beer4Helper.ReactionCounter.Data;
 using Beer4Helper.ReactionCounter.Models;
+using Beer4Helper.ReactionCounter.StatModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
@@ -435,7 +437,7 @@ public class TelegramBotService(
             .Take(topCount)
             .ToListAsync(cancellationToken);
 
-        var resultMsg = new StringBuilder($"<b>На их фото реагировали больше всего!</b>\n<i>(за {periodPrefix}{periodPostfix})</i>\n\n");
+        var resultMsg = new StringBuilder($"<b>На их фото реагировали больше всего!</b>\n");
 
         if (userStats.Count == 0)
         {
@@ -497,7 +499,7 @@ public class TelegramBotService(
             .Take(topCount)
             .ToListAsync(cancellationToken: cancellationToken);
 
-        var resultMsg = new StringBuilder($"<b>Какие фото вызвали больше всего изумления?</b>\n<i>(за {periodPrefix}{periodPostfix})</i>\n\n");
+        var resultMsg = new StringBuilder($"<b>Какие фото вызвали больше всего изумления?</b>\n");
         var index = 1;
 
         foreach (var p in topPhotos)
@@ -532,7 +534,7 @@ public class TelegramBotService(
             .Take(topCount)
             .ToListAsync(cancellationToken);
 
-        var resultMsg = new StringBuilder($"<b>Как мы реагировали чаще всего?</b>\n<i>(за {periodPrefix}{periodPostfix}, без кастомных эмодзи)</i>\n\n");
+        var resultMsg = new StringBuilder($"<b>Как мы реагировали чаще всего?</b>\n");
         var index = 1;
     
         foreach (var r in topReactions.Where(r => r.Emoji!.Length <= 4))
@@ -551,42 +553,229 @@ public class TelegramBotService(
         await botClient.SendMessage(chatId, topUserMsg, parseMode: ParseMode.Html, cancellationToken: token);
     }
 
-    public async Task EditMessage(long chatId, long messageId, string editMode, DateTime updatedAt,
-        CancellationToken token)
+    public async Task EditMessage(long chatId, long messageId, string text, CancellationToken token)
     {
-        var updatedAtText = $"\n<i>Последнее обновление {updatedAt:HH:mm dd/MM/yyyy}</i>";
-        
-        switch (editMode)
+        await botClient.EditMessageText(new ChatId(chatId), (int)messageId, text, ParseMode.Html, cancellationToken: token);
+    }
+    
+    public async Task DeleteMessage(long chatId, long messageId, DateTime now, CancellationToken token)
+    {
+        await botClient.DeleteMessage(new ChatId(chatId), (int)messageId, cancellationToken: token);
+    }
+    
+    public async Task CreateTopMessageAndSend(long chatId, CancellationToken token)
+    {
+        var existingTopMsgs = await dbContext.TopMessages.Where(m => m.ChatId == chatId).ToListAsync(token);
+        if (existingTopMsgs.Count != 0)
         {
-            case "photo-top":
+            foreach (var msg in existingTopMsgs)
             {
-                var topPhotos = await GetTopPhotosAsync(chatId, DateTime.UtcNow.AddMonths(-1), 1, "m", 10, token);
-                await botClient.EditMessageText(new ChatId(chatId), (int)messageId, topPhotos + updatedAtText, ParseMode.Html, cancellationToken: token);
-                break;
+                await botClient.UnpinChatMessage(chatId, msg.MessageId, cancellationToken: token);
             }
-            case "user-top":
+            dbContext.TopMessages.RemoveRange(existingTopMsgs);
+            await dbContext.SaveChangesAsync(token);
+        }
+        
+        var now = DateTime.UtcNow;
+        var firstDayOfMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        const int topCount = 10;
+
+        var photoStats = await GetPhotoStatsAsync(chatId, firstDayOfMonth, topCount, token);
+        var userStats = await GetUserStatsAsync(chatId, firstDayOfMonth, topCount, token);
+        var reactionStats = await GetReactionStatsAsync(chatId, firstDayOfMonth, topCount, token);
+    
+        var russianCulture = new CultureInfo("ru-RU");
+        var monthName = russianCulture.DateTimeFormat.GetMonthName(now.Month);
+        
+        var header = $"<b>СТАТИСТИКА ЧАТА</b>\n<i>за {monthName} {now.Year}</i>\n";
+        var footerText =  $"\n<i>Последнее обновление {now + TimeSpan.FromHours(4):HH:mm dd/MM/yyyy}</i>";
+        var messageText = ConstructTopMessage(header, photoStats, userStats, reactionStats, footerText);
+    
+        var topMessage = new TopMessage
+        {
+            ChatId = chatId,
+            Text = messageText,
+            MessageId = -1
+        };
+    
+        var sentMsg = await botClient.SendMessage(chatId, topMessage.Text, parseMode: ParseMode.Html, cancellationToken: token);
+        await botClient.PinChatMessage(chatId, sentMsg.MessageId, disableNotification: true, cancellationToken: token);
+        
+        topMessage.MessageId = sentMsg.MessageId;
+        topMessage.EditedAt = sentMsg.Date;
+    
+        await dbContext.AddAsync(topMessage, token);
+        await dbContext.SaveChangesAsync(token);
+    }
+    
+    public async Task UpdateAllTopMessages(CancellationToken token)
+    {
+        var now = DateTime.UtcNow;
+        var firstDayOfMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var allTopMessages = await dbContext.TopMessages.ToListAsync(token);
+    
+        foreach (var topMessage in allTopMessages)
+        {
+            try
             {
-                var topPhotos = await GetTopUsersAsync(chatId, DateTime.UtcNow.AddMonths(-1), 1, "m", 15, token);
-                await botClient.EditMessageText(new ChatId(chatId), (int)messageId, topPhotos + updatedAtText, ParseMode.Html, cancellationToken: token);
-                break;
+                var photoStats = await GetPhotoStatsAsync(topMessage.ChatId, firstDayOfMonth, 10, token);
+                var userStats = await GetUserStatsAsync(topMessage.ChatId, firstDayOfMonth, 15, token);
+                var reactionStats = await GetReactionStatsAsync(topMessage.ChatId, firstDayOfMonth, 25, token);
+            
+                var russianCulture = new CultureInfo("ru-RU");
+                var monthName = russianCulture.DateTimeFormat.GetMonthName(now.Month);
+                
+                var header = $"<b>СТАТИСТИКА ЧАТА</b>\n<i>за {monthName} {now.Year}</i>\n";
+                var footerText =  $"\n<i>Последнее обновление {now + TimeSpan.FromHours(4):HH:mm dd/MM/yyyy}</i>";
+                var messageText = ConstructTopMessage(header, photoStats, userStats, reactionStats, footerText);
+
+                if (messageText == topMessage.Text) continue;
+                topMessage.Text = messageText;
+                topMessage.EditedAt = now;
+                
+                await dbContext.SaveChangesAsync(token);
+                await EditMessage(topMessage.ChatId, topMessage.MessageId, messageText, token);
             }
-            case "reaction-top":
+            catch (Exception ex)
             {
-                var topPhotos = await GetTopReactionsAsync(chatId, DateTime.UtcNow.AddMonths(-1), 1, "m", 20, token);
-                await botClient.EditMessageText(new ChatId(chatId), (int)messageId, topPhotos + updatedAtText, ParseMode.Html, cancellationToken: token);
-                break;
+                logger.LogError(ex, $"Error updating top message for chat {topMessage.ChatId}");
             }
         }
     }
 
-    public async Task UpdateTopMessages(DateTime updatedAt, CancellationToken stoppingToken)
+    private async Task<List<PhotoStat>> GetPhotoStatsAsync(long chatId, DateTime period, int topCount,
+        CancellationToken cancellationToken)
     {
+        return await dbContext.PhotoMessages
+            .AsNoTracking()
+            .Where(p => p.CreatedAt > period && p.ChatId == chatId)
+            .GroupJoin(dbContext.Reactions,
+                photo => photo.MessageId,
+                reaction => reaction.MessageId,
+                (photo, reactions) => new { Photo = photo, Reactions = reactions })
+            .SelectMany(x => x.Reactions
+                    .Where(r => r.UserId != x.Photo.UserId) // Только реакции других пользователей
+                    .DefaultIfEmpty(),
+                (x, reaction) => new { x.Photo, Reaction = reaction })
+            .Where(x => x.Reaction != null) // Исключаем записи без реакций
+            .GroupBy(x => x.Photo.MessageId)
+            .Select(group => new PhotoStat
+            {
+                MessageId = group.Key,
+                TotalReactions = group.Count(),
+                ChatId = group.First().Photo.ChatId
+            })
+            .OrderByDescending(p => p.TotalReactions)
+            .Take(topCount)
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<List<UserStat>> GetUserStatsAsync(long chatId, DateTime period, int topCount,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.UserStats
+            .Where(u => u.ChatId == chatId)
+            .Select(u => new UserStat
+            {
+                Username = u.Username ?? "@anonimus",
+                TotalReactions = dbContext.Reactions
+                    .Count(r => r.ChatId == chatId && r.UserId != u.UserId && 
+                                dbContext.PhotoMessages.Any(p => 
+                                    p.MessageId == r.MessageId && 
+                                    p.UserId == u.UserId &&
+                                    p.CreatedAt >= period)),
+                TotalPhotos = dbContext.PhotoMessages
+                    .Count(p => p.ChatId == chatId && 
+                                p.UserId == u.UserId &&
+                                p.CreatedAt >= period)
+            })
+            .OrderByDescending(u => u.TotalReactions)
+            .Take(topCount)
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<List<ReactionStat>> GetReactionStatsAsync(long chatId, DateTime period, int topCount,
+        CancellationToken cancellationToken)
+    {
+        var photoMsgIds = await dbContext.PhotoMessages
+            .AsNoTracking()
+            .Where(p => p.ChatId == chatId && p.CreatedAt >= period)
+            .Select(p => p.MessageId)
+            .ToListAsync(cancellationToken);
+
+        return await dbContext.Reactions
+            .AsNoTracking()
+            .Where(r => r.CreatedAt > period && 
+                        r.ChatId == chatId && 
+                        photoMsgIds.Contains((int)r.MessageId))
+            .GroupBy(r => r.Emoji)
+            .Select(group => new ReactionStat
+            {
+                Emoji = group.Key ?? "custom_emoji",
+                Count = group.Count()
+            })
+            .OrderByDescending(r => r.Count)
+            .Take(topCount)
+            .ToListAsync(cancellationToken);
+    }
+    
+    private static string ConstructTopMessage(
+        string header, 
+        List<PhotoStat> photoStats,
+        List<UserStat> userStats,
+        List<ReactionStat> reactionStats, 
+        string footerText)
+    {
+        var messageBuilder = new StringBuilder(header);
         
-        foreach (var chatId in await dbContext.Reactions.Select(r => r.ChatId).Distinct().ToListAsync(stoppingToken))
+        messageBuilder.AppendLine("\n<b>Эти фото</b> <s>почти</s> <b>никого не оставили равнодушным:</b>");
+        if (photoStats.Count > 0)
         {
-            await EditMessage(chatId, 159, "photo-top", updatedAt,  stoppingToken);
-            await EditMessage(chatId, 160, "user-top", updatedAt, stoppingToken);
-            await EditMessage(chatId, 161, "reaction-top", updatedAt, stoppingToken);
+            for (var i = 0; i < photoStats.Count; i++)
+            {
+                var photo = photoStats[i];
+                messageBuilder.AppendLine(
+                    $"{i + 1}. <a href=\"https://t.me/c/{photo.ChatId.ToString()[4..]}/{photo.MessageId}\">Фото</a> - {photo.TotalReactions} реакций");
+            }
         }
+        else
+        {
+            messageBuilder.AppendLine("Нет данных о фотографиях");
+        }
+        
+        messageBuilder.AppendLine("\n<b>На их фото реагировали больше всего:</b>");
+        if (userStats.Count > 0 && userStats.TrueForAll(u => u.TotalPhotos > 0))
+        {
+            for (var i = 0; i < userStats.Count; i++)
+            {
+                var user = userStats[i];
+                
+                messageBuilder.AppendLine(
+                    $"{i + 1}. @{user.Username} - {user.TotalReactions} реакций ({user.TotalPhotos} фото)");
+            }
+        }
+        else
+        {
+            messageBuilder.AppendLine("Нет данных о пользователях");
+        }
+        
+        messageBuilder.AppendLine("\n<b>Самые популярные реакции:</b>");
+        if (reactionStats.Count > 0)
+        {
+            for (var i = 0; i < reactionStats.Count; i++)
+            {
+                var reaction = reactionStats[i];
+                messageBuilder.AppendLine($"{i + 1}. {reaction.Emoji} - {reaction.Count} раз");
+            }
+        }
+        else
+        {
+            messageBuilder.AppendLine("Нет данных о реакциях");
+        }
+        
+        messageBuilder.AppendLine(footerText);        
+        
+        return messageBuilder.ToString();
     }
 }

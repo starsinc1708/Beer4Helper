@@ -8,6 +8,7 @@ namespace Beer4Helper.ReactionCounter.Data
         public DbSet<Reaction> Reactions { get; set; }
         public DbSet<UserStats> UserStats { get; set; }
         public DbSet<PhotoMessage> PhotoMessages { get; set; }
+        public DbSet<TopMessage> TopMessages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
