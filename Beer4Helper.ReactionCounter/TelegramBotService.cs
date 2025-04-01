@@ -80,19 +80,17 @@ public class TelegramBotService(
         foreach (var reaction in newReactions)
         {
             var emoji = ExtractReactionValue(reaction);
-            if (oldReactions.All(r => ExtractReactionValue(r) != emoji)) 
-            {
-                await SaveReaction(chatId, userId, username, messageId, emoji, cancellationToken);
-            }
+            if (oldReactions.Any(r => ExtractReactionValue(r) == emoji)) continue;
+            await SaveReaction(chatId, userId, username, messageId, emoji, cancellationToken);
+            logger.LogInformation($"message reaction saved [{emoji} \t from {username}]");
         }
         
         foreach (var reaction in oldReactions)
         {
             var emoji = ExtractReactionValue(reaction);
-            if (newReactions.All(r => ExtractReactionValue(r) != emoji))
-            {
-                await RemoveReaction(chatId, userId, messageId, emoji, cancellationToken);
-            }
+            if (newReactions.Any(r => ExtractReactionValue(r) == emoji)) continue;
+            await RemoveReaction(chatId, userId, messageId, emoji, cancellationToken);
+            logger.LogInformation($"message reaction removed [{emoji} \t from {username}]");
         }
 
         return;
@@ -118,6 +116,7 @@ public class TelegramBotService(
             if (_settings.ReactionChatIds.Contains(message.Chat.Id))
             {
                 await SavePhotoMessage(message, cancellationToken);
+                logger.LogInformation($"photo message saved [from {message.From!.Username}]");
             }
         }
         else if (message.Text != null)
