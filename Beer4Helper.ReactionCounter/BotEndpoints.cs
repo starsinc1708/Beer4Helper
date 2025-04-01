@@ -187,6 +187,17 @@ public static class BotEndpoints
             await botService.CreateTopMessageAndSend(request.ChatId, context.RequestAborted);
             return Results.Ok("top message created");
         });
+        
+        app.MapPost("/api/createTopMessageTest", async (HttpContext context, TelegramBotService botService) =>
+        {
+            var request = await context.Request.ReadFromJsonAsync<TopStatsRequest>();
+            if (request == null || request.ChatId == 0)
+            {
+                return Results.BadRequest("Invalid request parameters");
+            }
+            await botService.CreateTopMessageTest(request.ChatId, request.SendToChatId, context.RequestAborted);
+            return Results.Ok("top message created");
+        });
     }
 }
 
@@ -194,6 +205,7 @@ public class CreateTopMessageRequest
 {
     public long ChatId { get; set; }
 }
+
 
 public class ChatMemberRequest {
     public long ChatId { get; set; }

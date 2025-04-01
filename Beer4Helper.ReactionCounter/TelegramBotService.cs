@@ -562,6 +562,26 @@ public class TelegramBotService(
         await botClient.DeleteMessage(new ChatId(chatId), (int)messageId, cancellationToken: token);
     }
     
+    public async Task CreateTopMessageTest(long chatId, long sendTo, CancellationToken token)
+    {
+        var now = DateTime.UtcNow;
+        var firstDayOfMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        const int topCount = 10;
+
+        var photoStats = await GetPhotoStatsAsync(chatId, firstDayOfMonth, topCount, token);
+        var userStats = await GetUserStatsAsync(chatId, firstDayOfMonth, topCount, token);
+        var reactionStats = await GetReactionStatsAsync(chatId, firstDayOfMonth, topCount, token);
+    
+        var russianCulture = new CultureInfo("ru-RU");
+        var monthName = russianCulture.DateTimeFormat.GetMonthName(now.Month);
+        
+        var header = $"<b>СТАТИСТИКА ЧАТА</b>\n<i>за {monthName} {now.Year}</i>\n";
+        var footerText =  $"\n<i>Последнее обновление {now + TimeSpan.FromHours(4):HH:mm dd/MM/yyyy}</i>";
+        var messageText = ConstructTopMessage(header, photoStats, userStats, reactionStats, footerText);
+    
+        await botClient.SendMessage(sendTo, messageText, parseMode: ParseMode.Html, cancellationToken: token);
+    }
+    
     public async Task CreateTopMessageAndSend(long chatId, CancellationToken token)
     {
         var existingTopMsgs = await dbContext.TopMessages.Where(m => m.ChatId == chatId).ToListAsync(token);
