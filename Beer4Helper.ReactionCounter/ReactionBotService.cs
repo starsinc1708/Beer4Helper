@@ -11,10 +11,10 @@ using Telegram.Bot.Types.Enums;
 
 namespace Beer4Helper.ReactionCounter;
 
-public class TelegramBotService(
+public class ReactionBotService(
     ITelegramBotClient botClient,
     IOptions<TelegramBotSettings> settings,
-    ILogger<TelegramBotService> logger,
+    ILogger<ReactionBotService> logger,
     ReactionDbContext dbContext)
 {
     private readonly TelegramBotSettings _settings = settings.Value;

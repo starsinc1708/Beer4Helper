@@ -11,7 +11,7 @@ public class MessageHandler(
     IOptions<TelegramBotSettings> settings, 
     ITelegramBotClient botClient,
     ReactionDbContext dbContext,
-    ILogger<TelegramBotService> logger)
+    ILogger<ReactionBotService> logger)
 {
     private readonly TelegramBotSettings _settings = settings.Value;
     

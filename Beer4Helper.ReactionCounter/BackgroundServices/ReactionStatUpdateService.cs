@@ -13,7 +13,7 @@ public class ReactionStatUpdateService(
         try
         {
             using var scope = services.CreateScope();
-            var botService = scope.ServiceProvider.GetRequiredService<TelegramBotService>();
+            var botService = scope.ServiceProvider.GetRequiredService<ReactionBotService>();
             
             _nextStatsUpdate = DateTime.UtcNow.AddMinutes(1);
             logger.LogInformation("Next stats update scheduled for {NextUpdate}", _nextStatsUpdate + TimeSpan.FromHours(4));
@@ -32,7 +32,7 @@ public class ReactionStatUpdateService(
         }
     }
     
-    private async Task DoStatsUpdateWork(TelegramBotService botService, CancellationToken stoppingToken)
+    private async Task DoStatsUpdateWork(ReactionBotService botService, CancellationToken stoppingToken)
     {
         logger.LogInformation("User stats update service is starting...");
         
@@ -65,7 +65,7 @@ public class ReactionStatUpdateService(
         }
     }
     
-    private async Task DoEditTopMessagesWork(TelegramBotService botService, CancellationToken stoppingToken)
+    private async Task DoEditTopMessagesWork(ReactionBotService botService, CancellationToken stoppingToken)
     {
         logger.LogInformation("Editing top messages is starting...");
         while (!stoppingToken.IsCancellationRequested)

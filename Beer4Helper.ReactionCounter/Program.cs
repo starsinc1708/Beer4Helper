@@ -20,7 +20,7 @@ builder.Services.AddDbContext<ReactionDbContext>(options =>
 
 builder.Services.AddSingleton<ITelegramBotClient>(new TelegramBotClient(builder.Configuration["TelegramBotToken"] ?? string.Empty));
 
-builder.Services.AddScoped<TelegramBotService>();
+builder.Services.AddScoped<ReactionBotService>();
 builder.Services.AddScoped<UpdateDistributor>();
 builder.Services.AddScoped<ReactionHandler>();
 builder.Services.AddScoped<MessageHandler>();

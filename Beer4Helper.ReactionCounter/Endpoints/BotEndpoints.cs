@@ -6,7 +6,7 @@ public static class BotEndpoints
 {
     public static void MapTelegramEndpoints(this WebApplication app)
     {
-        app.MapPost("/bot/editMessage", async (HttpContext context, TelegramBotService botService) =>
+        app.MapPost("/bot/editMessage", async (HttpContext context, ReactionBotService botService) =>
         {
             var request = await context.Request.ReadFromJsonAsync<Requests.EditMessageRequest>();
             if (request == null || request.ChatId == 0 || request.MessageId == 0)
@@ -17,7 +17,7 @@ public static class BotEndpoints
             return Results.Ok("message edited");
         });
         
-        app.MapPost("/bot/deleteMessage", async (HttpContext context, TelegramBotService botService) =>
+        app.MapPost("/bot/deleteMessage", async (HttpContext context, ReactionBotService botService) =>
         {
             var request = await context.Request.ReadFromJsonAsync<Requests.DeleteChatMessageRequest>();
             if (request == null || request.ChatId == 0 || request.MessageId == 0)
@@ -28,7 +28,7 @@ public static class BotEndpoints
             return Results.Ok("message edited");
         });
 
-        app.MapPost("/bot/reactions/createTopMessage", async (HttpContext context, TelegramBotService botService) =>
+        app.MapPost("/bot/reactions/createTopMessage", async (HttpContext context, ReactionBotService botService) =>
         {
             var request = await context.Request.ReadFromJsonAsync<Requests.CreateTopMessageRequest>();
             if (request == null || request.ChatId == 0)
@@ -39,7 +39,7 @@ public static class BotEndpoints
             return Results.Ok("top message created");
         });
         
-        app.MapPost("/bot/reactions/createTopMessageTest", async (HttpContext context, TelegramBotService botService) =>
+        app.MapPost("/bot/reactions/createTopMessageTest", async (HttpContext context, ReactionBotService botService) =>
         {
             var request = await context.Request.ReadFromJsonAsync<Requests.TopStatsRequest>();
             if (request == null || request.ChatId == 0)

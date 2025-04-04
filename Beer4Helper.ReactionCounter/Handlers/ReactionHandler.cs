@@ -10,7 +10,7 @@ namespace Beer4Helper.ReactionCounter.Handlers;
 public class ReactionHandler(
     IOptions<TelegramBotSettings> settings,
     ReactionDbContext dbContext,
-    ILogger<TelegramBotService> logger)
+    ILogger<ReactionBotService> logger)
 {
     private readonly TelegramBotSettings _settings = settings.Value;
     
