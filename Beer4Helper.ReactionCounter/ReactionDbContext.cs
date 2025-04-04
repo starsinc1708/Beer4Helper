@@ -1,7 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Beer4Helper.ReactionCounter.Models;
+﻿using Beer4Helper.ReactionCounter.Models;
+using Microsoft.EntityFrameworkCore;
 
-namespace Beer4Helper.ReactionCounter.Data
+namespace Beer4Helper.ReactionCounter
 {
     public class ReactionDbContext(DbContextOptions<ReactionDbContext> options) : DbContext(options)
     {

@@ -5,11 +5,11 @@ namespace Beer4Helper.ReactionCounter.Models
     public class PhotoMessage
     {
         [Key]
-        public int Id { get; set; }
-        public long ChatId { get; set; }
-        public long UserId { get; set; }
-        public int MessageId { get; set; }
-        public string FileId { get; set; } = string.Empty;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public int Id { get; init; }
+        public long ChatId { get; init; }
+        public long UserId { get; init; }
+        public int MessageId { get; init; }
+        public string FileId { get; init; } = string.Empty;
+        public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
     }
 }

@@ -3,7 +3,7 @@ version: "3.8"
 services:
   bot-test:
     build:
-      context: "C:\\starsinc-infra\\Beer4Helper"
+      context: "C:\\_git\\Beer4Helper"
       dockerfile: "Beer4Helper.ReactionCounter/Dockerfile"
       target: "base"
     command: []
@@ -15,7 +15,7 @@ services:
     image: "beer4helper.reactioncounter:dev"
     ports: []
     volumes:
-    - "C:\\starsinc-infra\\Beer4Helper\\Beer4Helper.ReactionCounter:/app:rw"
-    - "C:\\starsinc-infra\\Beer4Helper:/src:rw"
-    - "C:\\Users\\timatima\\.nuget\\packages:/home/app/.nuget/packages"
+    - "C:\\_git\\Beer4Helper\\Beer4Helper.ReactionCounter:/app:rw"
+    - "C:\\_git\\Beer4Helper:/src:rw"
+    - "C:\\Users\\vasilev\\.nuget\\packages:/home/app/.nuget/packages"
     working_dir: "/app"
