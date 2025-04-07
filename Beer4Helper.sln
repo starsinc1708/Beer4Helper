@@ -6,6 +6,14 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Beer4Helper.PollingService"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Beer4Helper.Shared", "Beer4Helper.Shared\Beer4Helper.Shared.csproj", "{45E7E87E-FED7-47D1-9B01-A283C3F79602}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "solution items", "solution items", "{5EFB2291-CC48-4784-AC34-EFA2BCA51E8D}"
+	ProjectSection(SolutionItems) = preProject
+		docker-compose.test.yml = docker-compose.test.yml
+		docker-compose.yml = docker-compose.yml
+		modules-conf.test.yml = modules-conf.test.yml
+		modules-conf.yml = modules-conf.yml
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

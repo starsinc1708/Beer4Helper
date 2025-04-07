@@ -1,7 +1,7 @@
 ﻿version: '3.8'
 
 services:
-  polling-test:
+  polling:
     build:
       context: .
       dockerfile: Beer4Helper.PollingService/Dockerfile
