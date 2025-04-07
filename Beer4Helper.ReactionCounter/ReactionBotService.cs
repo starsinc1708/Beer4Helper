@@ -1,10 +1,11 @@
 ﻿using System.Globalization;
 using System.Text;
-using Beer4Helper.ReactionCounter.ConfigModels;
+using Beer4Helper.ReactionCounter.Handlers;
 using Beer4Helper.ReactionCounter.Models;
 using Beer4Helper.ReactionCounter.Models.StatModels;
+using Beer4Helper.Shared;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -13,13 +14,36 @@ namespace Beer4Helper.ReactionCounter;
 
 public class ReactionBotService(
     ITelegramBotClient botClient,
-    IOptions<TelegramBotSettings> settings,
+    ReactionHandler reactionHandler,
+    MessageHandler messageHandler,
     ILogger<ReactionBotService> logger,
     ReactionDbContext dbContext)
 {
-    private readonly TelegramBotSettings _settings = settings.Value;
+    private readonly JsonSerializerSettings _settings = new()
+    {
+        Converters = new List<JsonConverter>
+        {
+            new ReactionTypeConverter()
+        }
+    };
+    
+    public async Task HandleUpdate(TgUpdateRequest? request, CancellationToken ct)
+    {
+        if  (request == null) return;
 
-    public async Task<List<ChatMember>> GetChatMembers(long chatId, CancellationToken cancellationToken)
+        var update = request.Update!;
+        
+        if (request.Type!.Equals(UpdateType.Message.ToString()))
+        {
+            await messageHandler.ProcessUpdate(update, ct);
+        }
+        else if (request.Type!.Equals(UpdateType.MessageReaction.ToString()))
+        {
+            await reactionHandler.ProcessUpdate(update, ct);
+        }
+    }
+    
+    private async Task<List<ChatMember>> GetChatMembers(long chatId, CancellationToken cancellationToken)
     {
         var userIdsFromDb = await dbContext.Reactions
             .AsNoTracking()
@@ -35,7 +59,7 @@ public class ReactionBotService(
         return chatMembers;
     }
 
-    public async Task<List<UserStats>> GenerateUserStats(long chatId, CancellationToken cancellationToken)
+    private async Task<List<UserStats>> GenerateUserStats(long chatId, CancellationToken cancellationToken)
     {
         var chatMembers = await GetChatMembers(chatId, cancellationToken);
         
@@ -125,7 +149,7 @@ public class ReactionBotService(
         }
     }
 
-    public async Task<List<UserStats>> UpdateUserStatForChat(long chatId, CancellationToken stoppingToken)
+    private async Task UpdateUserStatForChat(long chatId, CancellationToken stoppingToken)
     {
         try
         {
@@ -153,12 +177,10 @@ public class ReactionBotService(
                 
             await dbContext.SaveChangesAsync(stoppingToken);
             logger.LogInformation("Updated stats for chat {ChatId}", chatId);
-            return stats;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, $"Error updating stats for chat {chatId}");
-            return [];
         }
     }
     

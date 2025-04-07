@@ -1,4 +1,9 @@
-﻿using Beer4Helper.ReactionCounter.DTOs;
+﻿using System.Text.Json;
+using Beer4Helper.ReactionCounter.DTOs;
+using Beer4Helper.Shared;
+using Newtonsoft.Json;
+using Telegram.Bot;
+using Telegram.Bot.Types;
 
 namespace Beer4Helper.ReactionCounter.Endpoints;
 
@@ -48,6 +53,25 @@ public static class BotEndpoints
             }
             await botService.CreateTopMessageTest(request.ChatId, request.SendToChatId, context.RequestAborted);
             return Results.Ok("top message created");
+        });
+
+        app.MapPost("/getUpdates", async (
+            HttpContext context, 
+            ReactionBotService botService,
+            ILogger<Program> logger) =>
+        {
+            try
+            {
+                var data = await context.Request.ReadFromJsonAsync<TgUpdateRequest>(JsonBotAPI.Options, context.RequestAborted);
+                if (data?.Update != null)
+                {
+                    await botService.HandleUpdate(data, context.RequestAborted);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error deserializing request");
+            }
         });
     }
 }

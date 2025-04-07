@@ -1,23 +1,16 @@
-﻿using Beer4Helper.ReactionCounter.ConfigModels;
-using Beer4Helper.ReactionCounter.Models;
+﻿using Beer4Helper.ReactionCounter.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 
 namespace Beer4Helper.ReactionCounter.Handlers;
 
 public class ReactionHandler(
-    IOptions<TelegramBotSettings> settings,
     ReactionDbContext dbContext,
     ILogger<ReactionBotService> logger)
 {
-    private readonly TelegramBotSettings _settings = settings.Value;
-    
     public async Task ProcessUpdate(Update update, CancellationToken cancellationToken)
     {
         var reactionUpdate =  update.MessageReaction!;
-        if (!_settings.ReactionChatIds.Contains(reactionUpdate.Chat.Id)) return;
         
         var newReactions = reactionUpdate.NewReaction;
         var oldReactions = reactionUpdate.OldReaction;

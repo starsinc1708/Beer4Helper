@@ -1,13 +1,32 @@
 ﻿version: '3.8'
 
 services:
-  bot:
+  polling-test:
+    build:
+      context: .
+      dockerfile: Beer4Helper.PollingService/Dockerfile
+    container_name: telegram_polling
+    user: root
+    ports:
+      - "5001:8080"
+    depends_on:
+      - reactiondb
+      - reaction-module
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    volumes:
+      - ./modules-conf.yml:/app/modules-conf.yml
+    restart: always
+    networks:
+      - postgres_network
+  
+  reaction-module:
     build:
       context: .
       dockerfile: Beer4Helper.ReactionCounter/Dockerfile
     container_name: telegram_reaction_bot
     ports:
-      - "5001:8080"
+      - "5050:8080"
     depends_on:
       - reactiondb
     environment:
@@ -16,9 +35,6 @@ services:
       - Logging__LogLevel__Microsoft=Warning
       - Logging__LogLevel__Microsoft.EntityFrameworkCore=Error
       - ConnectionStrings__PostgreSQL=Host=reactiondb;Port=5432;Database=reaction_bot;Username=postgres;Password=postgres
-      - TelegramBotToken=7920539405:AAFPZQ56PhD4FDiiWxu3V6U0RL9OfL99Vig
-      - TelegramBotSettings__ReactionChatIds__0=-1002265344874
-      - TelegramBotSettings__CommandChatIds__0=-1002265344874
     restart: always
     networks:
       - postgres_network

@@ -1,0 +1,35 @@
+﻿Token: 7315536718:AAHUH9yNmvDhc8kgHhFTpLRmbdZRNH7wIvY
+BotModules:
+  ReactionCounter:
+    In:
+      Type: http
+      Host: reaction-module-test
+      Port: 8080
+      Endpoint: /getUpdates
+    AllowedUpdates:
+      Group,Supergroup:
+        - message
+        - my_chat_member
+        - chat_member
+        - message_reaction
+        - message_reaction_count
+    AllowedChats:
+      Group,SuperGroup:
+        - -1002490626579
+        - -1002257766850
+
+  EventPollMaker:
+    In:
+      Type: http
+      Host: poll-module-test
+      Port: 8080
+      Endpoint: /getUpdates
+    AllowedUpdates:
+      Channel,Group,Supergroup:
+        - poll
+        - poll_answer
+        - channel_post
+    AllowedChats:
+      Group,Channel,SuperGroup:
+        - -1002490626579
+        - -1002257766850

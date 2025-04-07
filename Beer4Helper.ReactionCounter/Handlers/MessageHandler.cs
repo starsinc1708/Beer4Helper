@@ -1,5 +1,5 @@
-﻿using Beer4Helper.ReactionCounter.ConfigModels;
-using Beer4Helper.ReactionCounter.Models;
+﻿using Beer4Helper.ReactionCounter.Models;
+using Beer4Helper.Shared;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -8,30 +8,18 @@ using Telegram.Bot.Types.Enums;
 namespace Beer4Helper.ReactionCounter.Handlers;
 
 public class MessageHandler(
-    IOptions<TelegramBotSettings> settings, 
     ITelegramBotClient botClient,
     ReactionDbContext dbContext,
     ILogger<ReactionBotService> logger)
 {
-    private readonly TelegramBotSettings _settings = settings.Value;
-    
     public async Task ProcessUpdate(Update update, CancellationToken cancellationToken)
     {
         var message = update.Message!;
         if (message.Chat.Type == ChatType.Private) return;
-
-        if (_settings.ReactionChatIds.Contains(message.Chat.Id))
-        {
-            await HandleMessageForReactionModule(message, cancellationToken);
-        }
-
-        if (_settings.MainChatId.Equals(message.Chat.Id))
-        {
-            // TODO: Handle Сообщение из Пивной четверг
-        }
+        await HandleMessage(message, cancellationToken);
     }
 
-    private async Task HandleMessageForReactionModule(Message message, CancellationToken cancellationToken)
+    private async Task HandleMessage(Message message, CancellationToken cancellationToken)
     {
         if (message.Photo is not null)
         {
@@ -41,7 +29,7 @@ public class MessageHandler(
 
         if (message.Entities?.Select(e => e.Type == MessageEntityType.BotCommand) != null)
         {
-            var command = await HandleReactionBotCommand(message, cancellationToken);
+            var command = await HandleBotCommand(message, cancellationToken);
             logger.LogInformation($"CHAT[{message.Chat.Id}] | COMMAND [{command}] HANDLED | [from {message.From!.Username}]");
         }
     }
@@ -64,7 +52,7 @@ public class MessageHandler(
         }
     }
     
-    private async Task<string> HandleReactionBotCommand(Message message, CancellationToken cancellationToken)
+    private async Task<string> HandleBotCommand(Message message, CancellationToken cancellationToken)
     {
         var chatId = message.Chat.Id;
         var textParts = message.Text?.Trim().Split("@")!;
@@ -145,7 +133,6 @@ public class MessageHandler(
                 logger.LogWarning($"Unknown command received: {command}");
                 break;
         }*/
-        
         return command;
     }
 }

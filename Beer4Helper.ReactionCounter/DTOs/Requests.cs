@@ -31,13 +31,5 @@ public class Requests
         public long SendToChatId { get; set; }
     }
 
-    public abstract class CustomTopStatsRequest
-    {
-        public long ChatId { get; set; }
-        public long SendToChatId { get; set; }
-        public string Period { get; set; } = "1m";
-        public int TopCount { get; set; } = 10;
     
-        public required string TopType { get; set; }
-    }
 }

@@ -1,8 +1,9 @@
-﻿namespace Beer4Helper.ReactionCounter.ConfigModels;
+﻿namespace Beer4Helper.Shared;
 
 public class TelegramBotSettings
 {
-    public long MainChatId { get; set; }
+    public string? Token { get; init; }
+    public long EventPollChatId { get; init; }
     public long[] ReactionChatIds { get; init; } = [];
     public long[] CommandChatIds { get; init; } = [];
 }

@@ -1,15 +1,14 @@
-﻿using Beer4Helper.ReactionCounter.Handlers;
-using Telegram.Bot;
+﻿using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
 
-namespace Beer4Helper.ReactionCounter.BackgroundServices;
+namespace Beer4Helper.PollingService.Polling;
 
 public class TelegramPollingService(
     IServiceProvider serviceProvider,
     ITelegramBotClient botClient,
     ILogger<TelegramPollingService> logger) : BackgroundService
 {
-    private readonly UpdateType[] AllowedUpdates =
+    private readonly UpdateType[] _allowedUpdates =
     [
         UpdateType.Message,
         UpdateType.CallbackQuery,
@@ -45,23 +44,13 @@ public class TelegramPollingService(
         {
             try
             {
-                var updates = await botClient.GetUpdates(
-                    offset: offset, 
-                    allowedUpdates: AllowedUpdates,
-                    cancellationToken: ct);
-
+                var updates = await botClient.GetUpdates(offset, allowedUpdates: _allowedUpdates, cancellationToken: ct);
                 foreach (var update in updates)
                 {
                     await distributor.DistributeUpdate(update, ct);
                     offset = update.Id + 1;
                 }
-                
                 await Task.Delay(TimeSpan.FromSeconds(1), ct);
-            }
-            catch (OperationCanceledException)
-            {
-                logger.LogInformation("Telegram polling service is stopping...");
-                throw;
             }
             catch (Exception ex)
             {

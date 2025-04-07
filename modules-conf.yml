@@ -1,0 +1,18 @@
+﻿Token: 7920539405:AAFPZQ56PhD4FDiiWxu3V6U0RL9OfL99Vig
+BotModules:
+  ReactionCounter:
+    In:
+      Type: http
+      Host: reaction-module
+      Port: 8080
+      Endpoint: /getUpdates
+    AllowedUpdates:
+      Group,Supergroup:
+        - message
+        - my_chat_member
+        - chat_member
+        - message_reaction
+        - message_reaction_count
+    AllowedChats:
+      Group,SuperGroup:
+        - -1002265344874

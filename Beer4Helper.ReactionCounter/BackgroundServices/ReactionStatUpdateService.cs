@@ -76,7 +76,7 @@ public class ReactionStatUpdateService(
                 
                 if (now >= _nextTopMessagesUpdate)
                 {
-                    await botService?.UpdateAllTopMessages(stoppingToken)!;
+                    await botService.UpdateAllTopMessages(stoppingToken);
                     
                     _nextTopMessagesUpdate = DateTime.UtcNow.AddMinutes(11);
                     logger.LogInformation("Next top messages update scheduled for {NextUpdate}", _nextTopMessagesUpdate + TimeSpan.FromHours(4));
