@@ -1,39 +1,21 @@
 # This is a generated file. Not intended for manual editing.
 version: "3.8"
 services:
-  polling-test:
+  event-module-test:
     build:
-      context: "C:\\Users\\timatima\\RiderProjects\\Beer4Helper"
-      dockerfile: "Beer4Helper.PollingService/test.Dockerfile"
+      context: "C:\\_git\\Beer4Helper"
+      dockerfile: "Beer4Helper.BeerEventManager/test.Dockerfile"
       target: "base"
     command: []
     entrypoint:
     - "dotnet"
-    - "/app/bin/Debug/net9.0/Beer4Helper.PollingService.dll"
+    - "/app/bin/Debug/net9.0/Beer4Helper.BeerEventManager.dll"
     environment:
       DOTNET_USE_POLLING_FILE_WATCHER: "true"
-    image: "beer4helper.pollingservice:dev"
+    image: "beer4helper.beereventmanager:dev"
     ports: []
     volumes:
-    - "C:\\Users\\timatima\\RiderProjects\\Beer4Helper\\Beer4Helper.PollingService:/app:rw"
-    - "C:\\Users\\timatima\\RiderProjects\\Beer4Helper:/src:rw"
-    - "C:\\Users\\timatima\\.nuget\\packages:/root/.nuget/packages"
-    working_dir: "/app"
-  reaction-module-test:
-    build:
-      context: "C:\\Users\\timatima\\RiderProjects\\Beer4Helper"
-      dockerfile: "Beer4Helper.ReactionCounter/Dockerfile"
-      target: "base"
-    command: []
-    entrypoint:
-    - "dotnet"
-    - "/app/bin/Debug/net9.0/Beer4Helper.ReactionCounter.dll"
-    environment:
-      DOTNET_USE_POLLING_FILE_WATCHER: "true"
-    image: "beer4helper.reactioncounter:dev"
-    ports: []
-    volumes:
-    - "C:\\Users\\timatima\\RiderProjects\\Beer4Helper\\Beer4Helper.ReactionCounter:/app:rw"
-    - "C:\\Users\\timatima\\RiderProjects\\Beer4Helper:/src:rw"
-    - "C:\\Users\\timatima\\.nuget\\packages:/home/app/.nuget/packages"
+    - "C:\\_git\\Beer4Helper\\Beer4Helper.BeerEventManager:/app:rw"
+    - "C:\\_git\\Beer4Helper:/src:rw"
+    - "C:\\Users\\vasilev\\.nuget\\packages:/root/.nuget/packages"
     working_dir: "/app"

@@ -1,11 +1,11 @@
 ﻿using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
 
 namespace Beer4Helper.Shared;
 
 public class TgUpdateRequest
 {
-    public string? Type { get; set; }
+    public Update? Update { get; init; }
+    public string? Type { get; init; }
     public string? Source { get; set; }
-    public Update? Update { get; set; }
+    public string? Token { get; set; }
 }

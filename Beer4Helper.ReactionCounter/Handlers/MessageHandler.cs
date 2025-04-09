@@ -1,6 +1,4 @@
 ﻿using Beer4Helper.ReactionCounter.Models;
-using Beer4Helper.Shared;
-using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -63,7 +61,7 @@ public class MessageHandler(
         
         var botUsername = (await botClient.GetMe(cancellationToken: cancellationToken)).Username;
 
-        if (commandUsername != botUsername) return "command for other bot";
+        if (commandUsername != botUsername) return $"command for other bot {commandUsername}";
         
         var commandParts = textParts[1].Split(' ');
         var args = commandParts.Skip(1).ToArray();
@@ -73,7 +71,7 @@ public class MessageHandler(
         var periodPrefix = 1;
         var periodPostfix = "m";
         
-        /*foreach (var arg in args)
+        foreach (var arg in args)
         {
             if (arg.StartsWith("top") && int.TryParse(arg[3..], out var count))
             {
@@ -114,25 +112,25 @@ public class MessageHandler(
                     parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                 break;
             case "/topusers":
-                var topUsers = await GetTopUsersAsync(chatId, period, periodPrefix, periodPostfix, topCount, cancellationToken);
-                await botClient.SendMessage(chatId, topUsers, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                //var topUsers = await GetTopUsersAsync(chatId, period, periodPrefix, periodPostfix, topCount, cancellationToken);
+                await botClient.SendMessage(chatId, "topUsers", parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                 break;
             case "/topinteractions":
-                var topInteractions = await GetTopInteractionsAsync(chatId, period, periodPrefix, periodPostfix, topCount, cancellationToken);
-                await botClient.SendMessage(chatId, topInteractions, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                //var topInteractions = await GetTopInteractionsAsync(chatId, period, periodPrefix, periodPostfix, topCount, cancellationToken);
+                await botClient.SendMessage(chatId, "topInteractions", parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                 break;
             case "/topphotos":
-                var topPhotos = await GetTopPhotosAsync(chatId, period, periodPrefix, periodPostfix, topCount, cancellationToken);
-                await botClient.SendMessage(chatId, topPhotos, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                //var topPhotos = await GetTopPhotosAsync(chatId, period, periodPrefix, periodPostfix, topCount, cancellationToken);
+                await botClient.SendMessage(chatId, "topPhotos", parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                 break;
             case "/topreactions":
-                var topReactions = await GetTopReactionsAsync(chatId, period, periodPrefix, periodPostfix, topCount, cancellationToken);
-                await botClient.SendMessage(chatId, topReactions, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+                //var topReactions = await GetTopReactionsAsync(chatId, period, periodPrefix, periodPostfix, topCount, cancellationToken);
+                await botClient.SendMessage(chatId, "topReactions", parseMode: ParseMode.Html, cancellationToken: cancellationToken);
                 break;
             default:
                 logger.LogWarning($"Unknown command received: {command}");
                 break;
-        }*/
+        }
         return command;
     }
 }

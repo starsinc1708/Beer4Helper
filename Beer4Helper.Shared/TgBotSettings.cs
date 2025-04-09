@@ -1,10 +1,9 @@
 ﻿using System.Globalization;
-using Beer4Helper.Shared;
 using Telegram.Bot.Types.Enums;
 
-namespace Beer4Helper.PollingService.Config;
+namespace Beer4Helper.Shared;
 
-public class BotModuleSettings
+public class TgBotSettings
 {
     public Dictionary<string, BotModule>? BotModules { get; set; }
     public string? Token { get; set; }
@@ -36,9 +35,9 @@ public class BotModule
         }
     }
 
-    private static Dictionary<UpdateSource, List<long>> ParseAllowedChats(Dictionary<string, List<string>>? allowedChats)
+    private static Dictionary<UpdateSource, List<string>> ParseAllowedChats(Dictionary<string, List<string>>? allowedChats)
     {
-        var chats = new Dictionary<UpdateSource, List<long>>();
+        var chats = new Dictionary<UpdateSource, List<string>>();
 
         if (allowedChats == null)
             return chats;
@@ -50,17 +49,14 @@ public class BotModule
             foreach (var sourceStr in sourceArr)
             {
                 var source = Enum.Parse<UpdateSource>(sourceStr.Trim(), ignoreCase: true);
-                var parsedChats = chatIds
-                    .Select(u => long.Parse(u, CultureInfo.InvariantCulture))
-                    .ToList();
 
                 if (chats.TryGetValue(source, out var list))
                 {
-                    list.AddRange(parsedChats);
+                    list.AddRange(chatIds);
                 }
                 else
                 {
-                    chats[source] = parsedChats;
+                    chats[source] = chatIds;
                 }
             }
         }
@@ -69,7 +65,7 @@ public class BotModule
     }
 
     public Dictionary<UpdateSource,  List<UpdateType>>? ParsedAllowedUpdates { get; private set; }
-    public Dictionary<UpdateSource,  List<long>>? ParsedAllowedChats { get; private set; }
+    public Dictionary<UpdateSource,  List<string>>? ParsedAllowedChats { get; private set; }
 
     private static Dictionary<string, List<string>>? ConvertDictionaryValuesToPascalCase(Dictionary<string, List<string>>? input)
     {
@@ -80,11 +76,11 @@ public class BotModule
             
         foreach (var kvp in input)
         {
-            var convertedValues = kvp.Value?
+            var convertedValues = kvp.Value
                 .Select(ToPascalCase)
                 .ToList();
 
-            if (convertedValues != null) result.Add(kvp.Key, convertedValues);
+            result.Add(kvp.Key, convertedValues);
         }
         
         return result;

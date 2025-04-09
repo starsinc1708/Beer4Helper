@@ -14,8 +14,9 @@ services:
       - reaction-module
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - Logging__LogLevel__System.Net.Http.HttpClient.Default.ClientHandler=Warning
     volumes:
-      - ./modules-conf.yml:/app/modules-conf.yml
+      - ./bot-settings.yml:/app/bot-settings.yml
     restart: always
     networks:
       - postgres_network

@@ -5,7 +5,6 @@ using Beer4Helper.ReactionCounter.Models;
 using Beer4Helper.ReactionCounter.Models.StatModels;
 using Beer4Helper.Shared;
 using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -19,14 +18,6 @@ public class ReactionBotService(
     ILogger<ReactionBotService> logger,
     ReactionDbContext dbContext)
 {
-    private readonly JsonSerializerSettings _settings = new()
-    {
-        Converters = new List<JsonConverter>
-        {
-            new ReactionTypeConverter()
-        }
-    };
-    
     public async Task HandleUpdate(TgUpdateRequest? request, CancellationToken ct)
     {
         if  (request == null) return;
@@ -58,7 +49,50 @@ public class ReactionBotService(
         }
         return chatMembers;
     }
+    
+    public async Task UpdateUserStats(CancellationToken stoppingToken)
+    {
+        foreach (var chatId in await dbContext.Reactions.Select(r => r.ChatId).Distinct().ToListAsync(stoppingToken))
+        {
+            await UpdateUserStatForChat(chatId, stoppingToken);
+        }
+    }
 
+    private async Task UpdateUserStatForChat(long chatId, CancellationToken stoppingToken)
+    {
+        try
+        {
+            var stats = await GenerateUserStats(chatId, stoppingToken);
+            
+            foreach (var stat in stats)
+            {
+                var existingStat = await dbContext.UserStats
+                    .FirstOrDefaultAsync(s => s.Id == stat.Id && s.ChatId == chatId, stoppingToken);
+
+                if (existingStat == null)
+                {
+                    dbContext.UserStats.Add(stat);
+                }
+                else
+                {
+                    existingStat.Username = stat.Username;
+                    existingStat.TotalReactions = stat.TotalReactions;
+                    existingStat.TotalReactionsOnOwnMessages = stat.TotalReactionsOnOwnMessages;
+                    existingStat.TotalReactionsOnOthersMessages = stat.TotalReactionsOnOthersMessages;
+                    existingStat.TotalPhotosUploaded = stat.TotalPhotosUploaded;
+                    existingStat.TotalUniqueMessages = stat.TotalUniqueMessages;
+                }
+            }
+                
+            await dbContext.SaveChangesAsync(stoppingToken);
+            logger.LogInformation("Updated stats for chat {ChatId}", chatId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, $"Error updating stats for chat {chatId}");
+        }
+    }
+    
     private async Task<List<UserStats>> GenerateUserStats(long chatId, CancellationToken cancellationToken)
     {
         var chatMembers = await GetChatMembers(chatId, cancellationToken);
@@ -141,55 +175,12 @@ public class ReactionBotService(
             }).ToList();
     }
     
-    public async Task UpdateUserStats(CancellationToken stoppingToken)
-    {
-        foreach (var chatId in await dbContext.Reactions.Select(r => r.ChatId).Distinct().ToListAsync(stoppingToken))
-        {
-            await UpdateUserStatForChat(chatId, stoppingToken);
-        }
-    }
-
-    private async Task UpdateUserStatForChat(long chatId, CancellationToken stoppingToken)
-    {
-        try
-        {
-            var stats = await GenerateUserStats(chatId, stoppingToken);
-            
-            foreach (var stat in stats)
-            {
-                var existingStat = await dbContext.UserStats
-                    .FirstOrDefaultAsync(s => s.Id == stat.Id && s.ChatId == chatId, stoppingToken);
-
-                if (existingStat == null)
-                {
-                    dbContext.UserStats.Add(stat);
-                }
-                else
-                {
-                    existingStat.Username = stat.Username;
-                    existingStat.TotalReactions = stat.TotalReactions;
-                    existingStat.TotalReactionsOnOwnMessages = stat.TotalReactionsOnOwnMessages;
-                    existingStat.TotalReactionsOnOthersMessages = stat.TotalReactionsOnOthersMessages;
-                    existingStat.TotalPhotosUploaded = stat.TotalPhotosUploaded;
-                    existingStat.TotalUniqueMessages = stat.TotalUniqueMessages;
-                }
-            }
-                
-            await dbContext.SaveChangesAsync(stoppingToken);
-            logger.LogInformation("Updated stats for chat {ChatId}", chatId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, $"Error updating stats for chat {chatId}");
-        }
-    }
-    
     public async Task EditMessage(long chatId, long messageId, string text, CancellationToken token)
     {
         await botClient.EditMessageText(new ChatId(chatId), (int)messageId, text, ParseMode.Html, cancellationToken: token);
     }
     
-    public async Task DeleteMessage(long chatId, long messageId, DateTime now, CancellationToken token)
+    public async Task DeleteMessage(long chatId, long messageId, CancellationToken token)
     {
         await botClient.DeleteMessage(new ChatId(chatId), (int)messageId, cancellationToken: token);
     }

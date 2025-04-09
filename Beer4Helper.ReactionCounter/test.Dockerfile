@@ -21,7 +21,7 @@ WORKDIR /app
 
 COPY --from=publish /app/publish .
 
-COPY ../bot-settings.yml /app/bot-settings.yml
+COPY ../bot-settings.test.yml /app/bot-settings.yml
 
 RUN chmod 644 /app/bot-settings.yml
 

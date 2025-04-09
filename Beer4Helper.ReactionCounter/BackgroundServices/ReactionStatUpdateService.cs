@@ -34,8 +34,6 @@ public class ReactionStatUpdateService(
     
     private async Task DoStatsUpdateWork(ReactionBotService botService, CancellationToken stoppingToken)
     {
-        logger.LogInformation("User stats update service is starting...");
-        
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -67,7 +65,6 @@ public class ReactionStatUpdateService(
     
     private async Task DoEditTopMessagesWork(ReactionBotService botService, CancellationToken stoppingToken)
     {
-        logger.LogInformation("Editing top messages is starting...");
         while (!stoppingToken.IsCancellationRequested)
         {
             try

@@ -18,18 +18,23 @@ BotModules:
         - -1002490626579
         - -1002257766850
 
-  EventPollMaker:
+  BeerEventManager:
     In:
       Type: http
-      Host: poll-module-test
+      Host: event-module-test
       Port: 8080
-      Endpoint: /getUpdates
+      Endpoint: /processUpdate
     AllowedUpdates:
       Channel,Group,Supergroup:
+        - my_chat_member
+        - chat_member
+        - channel_post
+        - callback_query
+      Poll:
         - poll
         - poll_answer
-        - channel_post
     AllowedChats:
       Group,Channel,SuperGroup:
-        - -1002490626579
-        - -1002257766850
+        - -1002388428913
+      Poll:
+        - all

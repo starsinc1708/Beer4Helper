@@ -32,7 +32,7 @@ public class ReactionHandler(
             var emoji = ExtractReactionValue(reaction);
             if (newReactions.Any(r => ExtractReactionValue(r) == emoji)) continue;
             await RemoveReaction(chatId, userId, messageId, emoji, cancellationToken);
-            logger.LogInformation($"CHAT[{reactionUpdate.Chat.Id}]: REACTION REMOVED [{emoji}  from {username} to message {messageId}]");
+            logger.LogInformation($"CHAT[{reactionUpdate.Chat.Id}]: REACTION REMOVED [{emoji}]  from [{username}] to message [{messageId}]");
         }
 
         return;

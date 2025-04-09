@@ -1,11 +1,11 @@
 ﻿using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
-namespace Beer4Helper.PollingService.Config;
+namespace Beer4Helper.Shared;
 
-public class ConfigLoader
+public static class ConfigLoader
 {
-    public static BotModuleSettings LoadConfig(string filePath)
+    public static TgBotSettings LoadConfig(string filePath)
     {
         var yaml = File.ReadAllText(filePath);
 
@@ -13,7 +13,7 @@ public class ConfigLoader
             .WithNamingConvention(NullNamingConvention.Instance)
             .Build();
 
-        var modules = deserializer.Deserialize<BotModuleSettings>(yaml);
+        var modules = deserializer.Deserialize<TgBotSettings>(yaml);
         return modules;
     }
 }

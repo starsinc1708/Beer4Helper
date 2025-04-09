@@ -1,8 +1,4 @@
-﻿using System.Text;
-using System.Text.Json;
-using Beer4Helper.PollingService.Config;
-using Beer4Helper.Shared;
-using Newtonsoft.Json;
+﻿using Beer4Helper.Shared;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -11,17 +7,21 @@ namespace Beer4Helper.PollingService.Services;
 
 public class ModuleService(
     HttpClient httpClient,
-    BotModuleSettings moduleSettings,
+    TgBotSettings settings,
     ILogger<ModuleService> logger)
 {
     public async Task SendUpdateToSuitableModules(Update update, UpdateType type, UpdateSource source, long fromId,
         CancellationToken ct)
     {
-        if (moduleSettings.BotModules != null)
+        if (settings.BotModules != null)
         {
-            var suitableModules = moduleSettings.BotModules
+            var suitableModules = settings.BotModules
                 .Select(m => m.Value)
-                .Where(m => m.ParsedAllowedChats != null && m.ParsedAllowedChats[source].Contains(fromId)).ToList();
+                .Where(m => 
+                    m.ParsedAllowedChats != null && 
+                    m.ParsedAllowedChats.TryGetValue(source, out var allowedChats) && 
+                    (allowedChats.Contains(fromId.ToString()) || allowedChats.Contains("All")))
+                .ToList();
 
             if (suitableModules.Count == 0)
             {
@@ -31,7 +31,13 @@ public class ModuleService(
             
             suitableModules = suitableModules
                 .Where(m => m.ParsedAllowedUpdates != null && m.ParsedAllowedUpdates[source].Contains(type)).ToList();
-
+                
+            if (suitableModules.Count == 0)
+            {
+                logger.LogInformation($"[{source}-{type} FROM {fromId}] - No suitable modules found");
+                return;
+            }
+            
             foreach (var module in suitableModules)
             {
                 await SendUpdate(module.In!, update, source, type, ct);
@@ -55,12 +61,13 @@ public class ModuleService(
             
                 var tgUpdateRequest = new TgUpdateRequest
                 {
-                    Update = update,  // No need to serialize `update` again here
+                    Update = update,
                     Source = source.ToString(),
-                    Type = updateType.ToString()
+                    Type = updateType.ToString(),
+                    Token = settings.Token
                 };
 
-                var content = JsonContent.Create(tgUpdateRequest, options: JsonBotAPI.Options);  // Use the object directly
+                var content = JsonContent.Create(tgUpdateRequest, options: JsonBotAPI.Options);
 
                 var response = await httpClient.PostAsync(url, content, ct);
                 if (response.IsSuccessStatusCode) return;

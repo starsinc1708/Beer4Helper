@@ -1,6 +1,6 @@
-﻿using Beer4Helper.PollingService.Config;
-using Beer4Helper.PollingService.Services;
+﻿using Beer4Helper.PollingService.Services;
 using Beer4Helper.Shared;
+using Newtonsoft.Json;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
@@ -15,6 +15,11 @@ public class UpdateDistributor(
         var type = update.Type;
         var source = ExtractUpdateSource(update);
         var fromId = ExtractFromId(update);
+
+        if (type is UpdateType.Poll or UpdateType.PollAnswer)
+        {
+            logger.LogInformation(JsonConvert.SerializeObject(update));
+        }
         
         logger.LogInformation($"Received Update [{source}-{type} FROM {fromId}]");
 

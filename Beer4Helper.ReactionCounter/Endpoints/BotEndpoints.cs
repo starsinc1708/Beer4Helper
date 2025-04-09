@@ -1,9 +1,6 @@
-﻿using System.Text.Json;
-using Beer4Helper.ReactionCounter.DTOs;
+﻿using Beer4Helper.ReactionCounter.DTOs;
 using Beer4Helper.Shared;
-using Newtonsoft.Json;
 using Telegram.Bot;
-using Telegram.Bot.Types;
 
 namespace Beer4Helper.ReactionCounter.Endpoints;
 
@@ -29,7 +26,7 @@ public static class BotEndpoints
             {
                 return Results.BadRequest("Invalid request parameters");
             }
-            await botService.DeleteMessage(request.ChatId, request.MessageId, DateTime.Now, context.RequestAborted);
+            await botService.DeleteMessage(request.ChatId, request.MessageId, context.RequestAborted);
             return Results.Ok("message edited");
         });
 
