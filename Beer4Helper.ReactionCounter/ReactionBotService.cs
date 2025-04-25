@@ -256,7 +256,10 @@ public class ReactionBotService(
         var now = DateTime.UtcNow;
         var firstDayOfMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        var allTopMessages = await dbContext.TopMessages.ToListAsync(token);
+        var allTopMessages = await dbContext.TopMessages
+            .GroupBy(m => m.ChatId)
+            .Select(g => g.OrderByDescending(m => m.EditedAt).FirstOrDefault()!)
+            .ToListAsync(token);
     
         foreach (var topMessage in allTopMessages)
         {
