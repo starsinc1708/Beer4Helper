@@ -1,6 +1,7 @@
 using Beer4Helper.BeerEventManager;
 using Beer4Helper.BeerEventManager.BackgroundServices;
 using Beer4Helper.BeerEventManager.Endpoints;
+using Beer4Helper.BeerEventManager.Handler;
 using Beer4Helper.Shared;
 using Microsoft.EntityFrameworkCore;
 using Telegram.Bot;
@@ -16,8 +17,10 @@ builder.Services.AddSingleton(botModules);
 builder.Services.AddSingleton<ITelegramBotClient>(new TelegramBotClient(botModules.Token ?? string.Empty));
 
 builder.Services.AddScoped<PollMakerBotService>();
+builder.Services.AddScoped<CallbackQueryHandler>();
 
 builder.Services.AddHostedService<PollCreationService>();
+builder.Services.AddHostedService<VotesUpdateService>();
 
 var app = builder.Build();
 

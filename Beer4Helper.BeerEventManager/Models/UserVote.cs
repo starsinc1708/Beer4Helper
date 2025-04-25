@@ -12,6 +12,6 @@ public class UserVote
     
     public long UserId { get; set; }
     
-    public long PollOptionId { get; set; }
+    public Guid PollOptionId { get; set; }
     public PollOption? PollOption { get; set; }
 }

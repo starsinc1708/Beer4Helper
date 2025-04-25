@@ -5,7 +5,7 @@ namespace Beer4Helper.BeerEventManager.Models;
 public class PollOption
 {
     [Key]
-    public long Id { get; set; }
+    public Guid Id { get; set; }
     
     public long PollId { get; set; }
     public Poll? Poll { get; set; }

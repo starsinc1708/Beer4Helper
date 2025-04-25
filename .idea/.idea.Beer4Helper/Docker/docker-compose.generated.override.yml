@@ -1,7 +1,25 @@
 # This is a generated file. Not intended for manual editing.
 version: "3.8"
 services:
-  bot:
+  polling:
+    build:
+      context: "C:\\_git\\Beer4Helper"
+      dockerfile: "Beer4Helper.PollingService/Dockerfile"
+      target: "base"
+    command: []
+    entrypoint:
+    - "dotnet"
+    - "/app/bin/Debug/net9.0/Beer4Helper.PollingService.dll"
+    environment:
+      DOTNET_USE_POLLING_FILE_WATCHER: "true"
+    image: "beer4helper.pollingservice:dev"
+    ports: []
+    volumes:
+    - "C:\\_git\\Beer4Helper\\Beer4Helper.PollingService:/app:rw"
+    - "C:\\_git\\Beer4Helper:/src:rw"
+    - "C:\\Users\\vasilev\\.nuget\\packages:/root/.nuget/packages"
+    working_dir: "/app"
+  reaction-module:
     build:
       context: "C:\\_git\\Beer4Helper"
       dockerfile: "Beer4Helper.ReactionCounter/Dockerfile"
@@ -17,5 +35,5 @@ services:
     volumes:
     - "C:\\_git\\Beer4Helper\\Beer4Helper.ReactionCounter:/app:rw"
     - "C:\\_git\\Beer4Helper:/src:rw"
-    - "C:\\Users\\vasilev\\.nuget\\packages:/home/app/.nuget/packages"
+    - "C:\\Users\\vasilev\\.nuget\\packages:/root/.nuget/packages"
     working_dir: "/app"

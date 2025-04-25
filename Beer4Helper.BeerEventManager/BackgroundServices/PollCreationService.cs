@@ -14,7 +14,7 @@ public class PollCreationService(
             using var scope = services.CreateScope();
             var botService = scope.ServiceProvider.GetRequiredService<PollMakerBotService>();
             
-            //_nextPollCreation = DateTime.UtcNow.AddMinutes(1);
+            _nextPollCreation = DateTime.UtcNow.AddMinutes(1);
             logger.LogInformation("Next poll creation scheduled for {NextUpdate}", _nextPollCreation + TimeSpan.FromHours(4));
             
             var pollCreationTask = DoPollCreationWork(botService, ct);
